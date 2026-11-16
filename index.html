@@ -1,0 +1,1674 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Анатоми 3D — хүний биеийн атлас ба сургалт</title>
+<meta name="description" content="Хүний биеийн 3D атлас, биологи ба химийн алхам алхмаар сургалт (монгол хэлээр).">
+<!-- Апп болгон суулгах (PWA) тохиргоо -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b1012">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Анатоми 3D">
+<!-- Сурах хэсгийн загвар -->
+<link rel="stylesheet" href="learn/learn.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,500;0,700;1,400;1,500&family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: full-height dissection stage + specimen-card panel (bottom sheet on phones, right column on wide screens); full-screen and tour modes float controls over the stage. Single deliberate dark "lightbox" look. */
+:root{
+  color-scheme:dark;
+  --bg:#0b1012; --stage-a:#1b2629; --stage-b:#0b1012;
+  --panel:#11181a; --raise:#172124; --line:#243133; --glass:rgba(15,22,24,.84);
+  --fg:#e8e9e2; --muted:#8f9d99; --bone:#eadfc4; --ink:#14100a; --hl:#f1c86a;
+  --display:"Alegreya",Georgia,"Times New Roman",serif;
+  --ui:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:14px;overflow:hidden}
+button,input{font-family:inherit}
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr)}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;flex-direction:column;min-width:0}
+.brand h1{font-family:var(--display);font-weight:700;font-size:22px;margin:0;line-height:1.05}
+.brand span{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.src{font-size:12px;color:var(--muted);text-align:right;line-height:1.35}
+.src b{color:var(--bone);font-weight:500}
+:is(.chip,.btn,.views button,.plist button,.tool,.iso-x,.tc-tog,.tc-bar button):focus-visible{outline:2px solid var(--hl);outline-offset:2px}
+
+.stage{position:relative;min-height:0;background:radial-gradient(ellipse at 50% 42%,var(--stage-a) 0%,var(--stage-b) 72%);overflow:hidden}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.views{position:absolute;top:10px;left:max(12px,env(safe-area-inset-left,0px));right:calc(max(12px,env(safe-area-inset-right,0px)) + 52px);display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.views::-webkit-scrollbar{display:none}
+.views button{all:unset;cursor:pointer;flex:none;font-size:12px;padding:6px 11px;border-radius:8px;background:var(--glass);border:1px solid var(--line);color:var(--fg);backdrop-filter:blur(6px)}
+.views button:hover{border-color:var(--bone)}
+.views button.go{background:var(--bone);color:var(--ink);border-color:var(--bone);font-weight:600}
+.tools{position:absolute;top:10px;right:max(12px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:6px}
+.tool{all:unset;cursor:pointer;width:40px;height:40px;display:grid;place-items:center;border-radius:10px;background:var(--glass);border:1px solid var(--line);color:var(--fg);backdrop-filter:blur(6px)}
+.tool svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tool[aria-pressed="true"]{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.tool:hover{border-color:var(--bone)}
+.isobar{position:absolute;top:54px;left:max(12px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:8px;background:var(--bone);color:var(--ink);border-radius:999px;padding:5px 6px 5px 12px;font-size:12.5px;font-weight:600;max-width:calc(100% - 90px)}
+.isobar span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iso-x{all:unset;cursor:pointer;background:var(--ink);color:var(--bone);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:500;flex:none}
+.hint{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:10px;right:max(12px,env(safe-area-inset-right,0px));color:var(--muted);font-size:11.5px;pointer-events:none;text-shadow:0 1px 2px #000}
+.tag{position:absolute;transform:translate(-50%,-130%);pointer-events:none;background:var(--bone);color:var(--ink);font-weight:600;font-size:12px;padding:4px 9px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.tag::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:var(--bone)}
+.loading{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;color:var(--muted);text-align:center;padding-inline:24px;background:radial-gradient(ellipse at 50% 42%,var(--stage-a) 0%,var(--stage-b) 72%)}
+.loading b{font-family:var(--display);font-style:italic;font-weight:500;font-size:19px;color:var(--fg)}
+.lbar{width:min(260px,70vw);height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.lbar i{display:block;height:100%;width:0;background:var(--bone);transition:width .25s}
+
+.float{display:none}
+.fdock{position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));flex-direction:column;gap:8px;pointer-events:none}
+.fdock>*{pointer-events:auto}
+.fchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.fchips::-webkit-scrollbar{display:none}
+.fchips .chip{flex:none;background:var(--glass);backdrop-filter:blur(6px)}
+.fcard{background:var(--glass);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fcard .t{flex:1 1 160px;min-width:0}
+.fcard b{font-family:var(--display);font-size:18px;display:block;line-height:1.1}
+.fcard i{font-family:var(--display);color:var(--bone);font-size:13px}
+.fcard p{margin:0;color:var(--muted);font-size:12.5px}
+.app.full,.app.touring{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr)!important}
+.app.full header,.app.full .panel,.app.full .hint{display:none}
+.app.full .stage,.app.touring .stage{grid-column:1!important;grid-row:1!important}
+.app.full .float{display:flex}
+.app.touring header,.app.touring .panel,.app.touring .hint,.app.touring .views,.app.touring .isobar,.app.touring .float,.app.touring #tFull{display:none!important}
+
+.tourcard{display:none;position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:560px;max-height:55%;overflow:auto;flex-direction:column;gap:8px;background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+/* Өвдөлт тэмдэглэх горимын загвар */
+.app.pain #paincard{display:flex}
+.app.pain .panel,.app.pain .hint,.app.pain .views,.app.pain .isobar,.app.pain .float,.app.pain #tExp,.app.pain .tag{display:none!important}
+#paincard{max-height:62%}
+.plog{display:flex;flex-direction:column;gap:4px} /* хадгалсан тэмдэглэлийн жагсаалт */
+.plog button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;background:var(--raise);border:1px solid var(--line);font-size:13px}
+.plog button span{color:var(--muted);font-size:12px}
+.plog button:focus-visible{outline:2px solid var(--hl)}
+/* Бие дээрх цэгийн нэрийн шошго */
+.painlabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.app:not(.pain) .painlabels{display:none}
+.plab{position:absolute;left:0;top:0;display:flex;align-items:center;gap:5px;padding:3px 9px 3px 4px;border-radius:999px;background:rgba(9,13,15,.88);color:#fff;font-size:12.5px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.45);border:1px solid rgba(255,80,60,.7)}
+.plab i{font-style:normal;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#ff2a1f;color:#fff;font-size:11px;font-weight:700}
+.plab.dim{opacity:.75;padding:2px 4px}
+/* Жижигрүүлсэн карт: зөвхөн гарчиг ба цэгүүд харагдана */
+#paincard.min>*:not(.tc-top):not(h3):not(.ppts){display:none}
+#pnUndo[disabled]{opacity:.35;cursor:default} /* буцаах зүйлгүй үед бүдэг */
+.ppts{display:flex;flex-wrap:wrap;gap:6px} /* тавьсан цэгүүдийн жагсаалт */
+.ppts span{display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 4px;border-radius:999px;background:var(--raise);border:1px solid var(--line);font-size:13px}
+.ppts span i{font-style:normal;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#ff2a1f;color:#fff;font-size:11px;font-weight:700}
+.ppts button{all:unset;cursor:pointer;color:var(--muted);padding:0 4px;font-size:15px;line-height:1}
+.preg-h{font-size:14px;margin:6px 0 2px;color:var(--bone)} /* бүс бүрийн гарчиг */
+.pwarn{background:#b3261e;color:#fff;border-radius:10px;padding:9px 11px;font-size:13.5px;line-height:1.45} /* яаралтай анхааруулга */
+.pcause{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px} /* шалтгааны жагсаалт */
+.pcause li{font-size:13.5px;line-height:1.45}
+.pcause li b{color:var(--fg)}
+.pcause li span{display:block;color:var(--muted);font-size:12.5px}
+.pcause li.top b{color:var(--bone)}
+.pcause em{font-style:normal;font-size:11px;background:#b3261e;color:#fff;border-radius:999px;padding:1px 7px;margin-left:4px}
+.pred{border:1px solid #b3261e;border-radius:10px;padding:8px 11px;font-size:13px;line-height:1.45} /* 103 руу залгах шинж тэмдгүүд */
+.pred ul{margin:4px 0 0;padding-left:18px}
+textarea.search{resize:vertical;font-family:inherit}
+.app.touring #tourcard,.app.browsing #browsecard,.app.guiding #guidecard,.app.preg #pregcard,.app.eye #eyecard{display:flex}
+.app.browsing,.app.guiding{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr)!important}
+.app.browsing header,.app.browsing .panel,.app.browsing .hint,.app.browsing .views,.app.browsing .isobar,.app.browsing .float,.app.browsing #tFull,.app.guiding header,.app.guiding .panel,.app.guiding .hint,.app.guiding .views,.app.guiding .isobar,.app.guiding .float,.app.guiding #tFull,.app.guiding #tExp,.app.guiding .tag{display:none!important}
+.app.browsing .stage,.app.guiding .stage{grid-column:1!important;grid-row:1!important}
+.glabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.app:not(.guiding) .glabels,.app:not(.guiding) .glines{display:none}
+.glines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+@media (max-width:640px){.glab span{display:none}.glab{max-width:120px;padding:3px 7px}.glab b{font-size:11.5px}}
+.glab{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;gap:1px;max-width:170px;padding:4px 9px 5px;border-radius:7px;border:0;border-left:4px solid var(--c);background:rgba(9,13,15,.86);color:var(--fg);font:inherit;text-align:left;box-shadow:0 3px 10px rgba(0,0,0,.45)}
+.glab b{font-size:12.5px;font-weight:600;line-height:1.2}
+.glab span{font-size:11px;color:var(--muted);line-height:1.25}
+.glab.cur{background:var(--bone);color:var(--ink);z-index:2}
+.glab.cur span{color:#5a4c36}
+.glab.dim{opacity:.4}
+.glab:focus-visible{outline:2px solid var(--hl)}
+.qlab{position:absolute;left:0;top:0;translate:-50% -50%;pointer-events:none;color:var(--hl);font-size:12.5px;font-weight:600;text-shadow:0 1px 3px #000,0 0 8px #000;white-space:nowrap}
+.app:not(.guiding) .qlab{display:none}
+.gdot{display:inline-block;width:13px;height:13px;border-radius:50%;background:var(--c);margin-right:8px;vertical-align:middle}
+.tc-chem{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px}
+.tc-chem b{font-weight:600}
+.pl{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--raise);border:1px solid var(--line)}
+.pl i{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.tc-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.tc-sum div{background:var(--raise);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.45}
+.tc-sum ul{margin:4px 0 0;padding-left:18px}
+.tourcard.min .tc-sum,.tourcard.min .tc-chem{display:none}
+.app.preg,.app.eye,.app.pain{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr)!important}
+.app.preg .panel,.app.preg .hint,.app.preg .views,.app.preg .isobar,.app.preg .float,.app.preg #tFull,.app.preg .tag,.app.preg #loading,.app.eye .panel,.app.eye .hint,.app.eye .views,.app.eye .isobar,.app.eye .float,.app.eye #tFull,.app.eye #tExp,.app.preg #tExp,.app.eye .tag,.app.eye #loading{display:none!important}
+.app.preg header,.app.eye header,.app.pain header{grid-column:1!important}
+.app.preg .stage,.app.eye .stage,.app.pain .stage{grid-column:1!important;grid-row:2!important}
+.eychips{gap:5px}
+.eychips .chip{font-size:12px;padding:5px 9px}
+.tourcard.min .eychips{display:none}
+.app.touring #tExp,.app.browsing #tExp{display:none!important}
+.brr{width:100%;accent-color:var(--bone);margin:0}
+.tc-ctx{display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;color:var(--fg);cursor:pointer}
+.tc-ctx input{accent-color:var(--bone);margin:0}
+.pg-meta{display:flex;flex-wrap:wrap;gap:6px}
+.pg-meta span{font-size:12.5px;padding:3px 9px;border-radius:999px;background:var(--raise);border:1px solid var(--line);color:var(--fg)}
+.pg-wk{font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0;font-size:12px;color:var(--bone)}
+.tourcard.min .pg-meta{display:none}
+.gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(6,9,10,.88);backdrop-filter:blur(6px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.gate-in{max-width:580px;width:100%;display:flex;flex-direction:column;gap:14px}
+.gate h2{font-family:var(--display);font-size:30px;margin:0;line-height:1.1}
+.gate p{margin:0;color:var(--muted);line-height:1.5}
+.gate-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.gate-opts button{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--raise)}
+.gate-opts button b{font-family:var(--display);font-size:21px;color:var(--fg)}
+.gate-opts button span{color:var(--muted);font-size:13px;line-height:1.45}
+.gate-opts button:hover,.gate-opts button:focus-visible{border-color:var(--bone)}
+.hdr-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--bg)}
+.tabs button{all:unset;cursor:pointer;padding:6px 12px;border-radius:999px;color:var(--muted);font-weight:500;font-size:13px}
+.tabs button[aria-pressed="true"]{background:var(--bone);color:var(--ink)}
+.modebtn{all:unset;cursor:pointer;font-size:12px;padding:6px 11px;border-radius:999px;border:1px solid var(--line);color:var(--fg)}
+:is(.tabs button,.modebtn,.gate-opts button):focus-visible{outline:2px solid var(--hl);outline-offset:2px}
+.tc-top{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tc-top .sp{flex:1}
+.tc-state{display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;color:var(--fg)}
+.tc-state i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.tourcard h3{margin:0;font-family:var(--display);font-size:24px;line-height:1.1;text-wrap:balance}
+.tc-la{font-family:var(--display);font-style:italic;color:var(--bone);font-size:14px;margin-top:-4px}
+.tc-time{font-size:12.5px;color:var(--muted)}
+.tc-time b{color:var(--fg);font-weight:600}
+.tourcard p{margin:0;line-height:1.5;font-size:13.5px;max-width:62ch}
+.tourcard p.tc-end{color:var(--bone)}
+.tc-bar{display:flex;gap:3px}
+.tc-bar button{all:unset;cursor:pointer;flex:1;height:8px;border-radius:3px;background:var(--line);overflow:hidden;position:relative}
+.tc-bar button span{position:absolute;top:0;bottom:0;left:0;width:0;background:var(--bone)}
+.tc-bar button.cur{outline:1px solid var(--bone);outline-offset:1px}
+.tc-ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tc-ctl .x{margin-left:auto}
+.tc-tog{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;letter-spacing:0;text-transform:none;color:var(--fg);padding:4px 9px;border-radius:999px;border:1px solid var(--line)}
+.tc-tog svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.tourcard.min{gap:6px;padding:8px 12px}
+.tourcard.min .tc-la,.tourcard.min .tc-time,.tourcard.min p,.tourcard.min .tc-state,.tourcard.min [data-k=prev],.tourcard.min [data-k=next],.tourcard.min [data-k=speed],.tourcard.min [data-k=close]{display:none}
+.tourcard.min h3{font-size:17px}
+
+.panel{background:var(--panel);border-top:1px solid var(--line);max-height:46vh;overflow:auto;-webkit-overflow-scrolling:touch}
+.panel-in{display:flex;flex-direction:column;gap:16px;padding-block:14px 18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.lbl{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.sub{font-size:12px;color:var(--muted);margin:10px 0 6px}
+.tdesc{margin:0 0 10px;line-height:1.5;color:var(--muted);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:7px 12px 7px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:13px;font-weight:500}
+.chip i{width:10px;height:10px;border-radius:50%;background:var(--c);opacity:.35}
+.chip[aria-pressed="true"]{color:var(--fg);border-color:var(--c);background:var(--raise)}
+.chip[aria-pressed="true"] i{opacity:1}
+.chip.busy{opacity:.6;cursor:progress}
+.chip.plain{padding:6px 11px}
+.chip.plain[aria-pressed="true"]{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px}
+.sl label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:4px}
+.sl output{font-variant-numeric:tabular-nums;color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--bone)}
+.info{background:var(--raise);border:1px solid var(--line);border-radius:12px;padding:14px}
+.info h2{font-family:var(--display);font-weight:700;font-size:22px;margin:0;line-height:1.15;text-wrap:balance}
+.info .la{font-family:var(--display);font-style:italic;color:var(--bone);font-size:15px;margin-top:2px}
+.info .en{font-size:12px;color:var(--muted);margin-top:2px}
+.info p{margin:10px 0 0;line-height:1.55;max-width:62ch}
+.info .meta{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:10px}
+.info .meta i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.info.empty p{color:var(--muted);margin:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{all:unset;cursor:pointer;font-size:13px;font-weight:500;padding:7px 12px;border-radius:8px;border:1px solid var(--line);color:var(--fg)}
+.btn.pri{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.btn:hover{border-color:var(--bone)}
+.btn:disabled{opacity:.4;cursor:default}
+.search{width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:8px 10px;font-size:13.5px}
+.search:focus{outline:2px solid var(--hl);outline-offset:1px}
+.plist{margin-top:10px;display:flex;flex-direction:column;gap:12px}
+.plist h3{margin:0 0 6px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px}
+.plist h3 i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.plist .row{display:flex;flex-wrap:wrap;gap:5px}
+.plist button{all:unset;cursor:pointer;font-size:12.5px;padding:5px 9px;border-radius:6px;background:var(--bg);border:1px solid var(--line);color:var(--fg)}
+.plist button small{color:var(--muted);margin-left:4px;font-size:11px}
+.plist button.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.note{color:var(--muted);font-size:11.5px;line-height:1.5;margin:0}
+.note a{color:var(--bone)}
+@media (min-width:900px){
+  .app{grid-template-columns:minmax(0,1fr) 390px;grid-template-rows:auto minmax(0,1fr)}
+  header{grid-column:1/-1}
+  .stage{grid-column:1;grid-row:2}
+  .panel{grid-column:2;grid-row:2;max-height:none;border-top:0;border-left:1px solid var(--line)}
+}
+</style>
+
+<div class="app" id="app">
+  <header>
+    <div class="brand"><h1>Анатоми 3D</h1><span>Хүний биеийн атлас</span></div>
+    <div class="hdr-r"><div class="tabs" role="group" aria-label="Хэсэг"><button id="tabBody" aria-pressed="true">Хүний бие</button><button id="tabEye" aria-pressed="false">Нүд</button><button id="tabPreg" aria-pressed="false">Хүүхэд хэрхэн өсдөг</button><button id="tabPain" aria-pressed="false">Өвдөлт</button><button id="tabLearn" aria-pressed="false">Сурах</button></div><button class="modebtn" id="modeBtn">Бүтэн хувилбар</button></div>
+  </header>
+
+  <div class="stage" id="stage">
+    <svg class="glines" id="glines" aria-hidden="true"></svg>
+    <div class="glabels" id="glabels"></div>
+    <div class="painlabels" id="painlabels"></div>
+    <div class="views" id="views"></div>
+    <div class="tools">
+      <button class="tool" id="tFull" aria-pressed="false" title="Бүтэн дэлгэц" aria-label="Бүтэн дэлгэц"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button class="tool" id="tIn" title="Томруулах" aria-label="Томруулах"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="tool" id="tOut" title="Жижигрүүлэх" aria-label="Жижигрүүлэх"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <button class="tool" id="tPan" aria-pressed="false" title="Гар — чирж зөөх" aria-label="Гар — чирж зөөх"><svg viewBox="0 0 24 24"><path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5v-6a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v6.5M17 9.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1.5a6 6 0 0 1-4.6-2.2L4 15.5a1.6 1.6 0 0 1 2.4-2.1L8 15"/></svg></button>
+      <button class="tool" id="tExp" aria-pressed="false" title="Задлах" aria-label="Задлах"><svg viewBox="0 0 24 24"><path d="M9 9 4 4M4 4v5M4 4h5M15 9l5-5M20 4v5M20 4h-5M9 15l-5 5M4 20v-5M4 20h5M15 15l5 5M20 20v-5M20 20h-5"/></svg></button>
+      <button class="tool" id="tRot" hidden aria-pressed="false" title="Аажмаар эргүүлэх" aria-label="Аажмаар эргүүлэх"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"/></svg></button>
+    </div>
+    <div class="isobar" id="isobar" hidden><span id="isoTxt"></span><button class="iso-x" id="isoX">Бүтэн бие</button></div>
+    <div class="tag" id="tag" hidden></div>
+    <div class="hint">Нэг хуруугаар эргүүлэх · хоёр хуруугаар томруулах · гарын товчоор чирж зөөх · хэсэг дээр дарж нэрийг нь харах</div>
+    <div class="float fdock"><div class="fchips" id="fchips"></div><div class="fcard" id="fcard"></div></div>
+    <div class="tourcard" id="tourcard" role="region" aria-label="Хоолны аялал"></div>
+    <div class="tourcard" id="browsecard" role="region" aria-label="Нэг бүрчлэн үзэх"></div>
+    <div class="tourcard" id="pregcard" role="region" aria-label="Хүүхэд хэрхэн өсдөг"></div>
+    <div class="tourcard" id="eyecard" role="region" aria-label="Нүдний бүтэц"></div>
+    <div class="tourcard" id="guidecard" role="region" aria-label="Тайлбартай задрал"></div>
+    <div class="tourcard" id="paincard" role="region" aria-label="Өвдөлт тэмдэглэх"></div>
+    <div class="loading" id="loading"><b id="loadTxt">Бодит загваруудыг ачаалж байна…</b><div class="lbar"><i id="loadBar"></i></div><span id="loadSub">~5 МБ</span></div>
+  </div>
+
+  <aside class="panel">
+    <div class="panel-in">
+      <section>
+        <p class="lbl">Хоолны аялал</p>
+        <p class="tdesc">Хоол амнаас орж хошногоор гарах хүртэл 14 зогсоолоор дамжих бодит замыг дагаж, эрхтэн бүрийг танилцуулна.</p>
+        <button class="btn pri" id="tourBtn">Аяллыг эхлүүлэх</button>
+      </section>
+      <section>
+        <p class="lbl">Нэг бүрчлэн үзэх</p>
+        <p class="tdesc">Яс, булчин, эрхтнийг нэг нэгээр нь дарааллаар үзээд, төгсгөлд нь бүгдийг хамт харна.</p>
+        <div class="chips" id="brChips"></div>
+      </section>
+      <section>
+        <p class="lbl">Давхарга</p>
+        <div class="chips" id="chips"></div>
+      </section>
+      <section class="sliders">
+        <div class="sl"><label for="skinOp">Арьсны тунгалаг байдал <output id="skinOut">22%</output></label><input type="range" id="skinOp" min="0" max="100" value="22"></div>
+        <div class="sl"><label for="musOp">Булчингийн тунгалаг байдал <output id="musOut">100%</output></label><input type="range" id="musOp" min="10" max="100" value="100"></div>
+      </section>
+      <section class="info empty" id="info"></section>
+      <section>
+        <p class="lbl">Тусгаарлаж харах</p>
+        <div class="sub">Биеийн бүс</div>
+        <div class="chips" id="regChips"></div>
+        <div class="sub">Эрхтний систем</div>
+        <div class="chips" id="sysChips"></div>
+      </section>
+      <section>
+        <p class="lbl">Хайх ба бүх бүлэг</p>
+        <input class="search" id="search" type="search" placeholder="Жишээ нь: зүрх, хавирга, femur" autocomplete="off">
+        <div class="plist" id="plist"></div>
+      </section>
+      <p class="note">3D загвар: <a href="https://lifesciencedb.jp/bp3d/" target="_blank" rel="noopener">BodyParts3D</a>, © The Database Center for Life Science, <a href="https://creativecommons.org/licenses/by-sa/2.1/jp/" target="_blank" rel="noopener">CC BY-SA 2.1 Japan</a>. Энэ хуудсанд хялбарчилж, монгол нэр нэмж ашигласан. Загвар нь насанд хүрсэн эрэгтэй хүнийх. Сургалтын зорилготой, оношилгоонд ашиглахгүй.</p>
+    </div>
+  </aside>
+  <div class="gate" id="gate" hidden>
+    <div class="gate-in">
+      <h2>Анатоми 3D</h2>
+      <p>Юу хийх вэ? Дараа нь дээд талын товчоор сольж болно.</p>
+      <div class="gate-opts">
+        <button id="gKids"><b>Хүүхдэд зориулсан</b><span>Бэлэг эрхтэн ба хошногоны хэсгийг харуулахгүй. Бүтэн хүний биед шорт өмсүүлнэ. Хоолны аялал шулуун гэдсээр дуусна.</span></button>
+        <button id="gFull"><b>Бүтэн хувилбар</b><span>Бүх эрхтэн, бүх хэсгийг харуулна.</span></button>
+        <button id="gPain"><b>Өвдөлт эсвэл өвчин шинжлэх</b><span>Бие дээр яг хаана, ямар өвдөлт байгааг тэмдэглээд, байж болох шалтгааныг харна. Онош биш.</span></button>
+        <button id="gLearn"><b>Сурах: биологи, хими</b><span>Анхан шатнаас анагаахын суурь хүртэл алхам алхмаар — тайлбар, 3D загвар, шалгалттай.</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+if(!window.THREE){$('loadTxt').textContent='3D сан ачаалагдсангүй. Хуудсаа дахин ачаална уу.';return;}
+const DATA='data/';
+if(THREE.ColorManagement)THREE.ColorManagement.legacyMode=false;
+
+/* ================= STATIC TABLES ================= */
+const LAYERS=[{k:'skin',n:'Арьс',c:'#d9a68b'},{k:'muscle',n:'Булчин',c:'#c4463e'},{k:'bone',n:'Яс',c:'#eadfc4'},{k:'organ',n:'Эрхтэн',c:'#d9817a'},{k:'vessel',n:'Судас',c:'#5a7ee0'}];
+const LC=Object.fromEntries(LAYERS.map(l=>[l.k,l]));
+const GCOL={skin:0xd6a58a,ear:0xd6a58a,lips:0xb8706a,brows:0x3a2a20,
+ cranium:0xe9dcc0,facebones:0xe9dcc0,zygomatic:0xe9dcc0,maxilla:0xe9dcc0,mandible:0xe9dcc0,hyoid:0xe9dcc0,cervical:0xe9dcc0,thoracic:0xe9dcc0,lumbar:0xe9dcc0,sacrum:0xe9dcc0,ribs:0xe9dcc0,sternum:0xe9dcc0,clavicle:0xe9dcc0,scapula:0xe9dcc0,humerus:0xe9dcc0,radius:0xe9dcc0,ulna:0xe9dcc0,hand:0xe9dcc0,hip:0xe9dcc0,femur:0xe9dcc0,patella:0xe9dcc0,tibia:0xe9dcc0,fibula:0xe9dcc0,foot:0xe9dcc0,
+ teeth:0xf8f4ea,disc:0xa9c6cc,costcart:0xb5cfd3,nasalcart:0xb5cfd3,gingiva:0xd77f86,
+ frontal:0xe7b3ac,parietal:0xe2a9b6,temporal:0xdcb59c,occipital:0xd7a099,limbic:0xe0c27a,insula:0xd8a0c0,whitematter:0xf1ebe0,basal:0x9fb6d8,diencephalon:0xc98f88,ventricles:0x5f8fd0,brainstem:0xd8ab98,cerebellum:0xc98c9a,commissure:0xf4efe4,optic:0xf0c94a,eye:0xf4f1ea,
+ heart:0xb33a37,lungs:0xd98c92,airway:0xdcc9b6,thymus:0xd8b08a,esophagus:0xc77870,stomach:0xd88c7c,duodenum:0xe3a98e,smallint:0xe0a090,colon:0xc98a6e,appendix:0xc98a6e,rectum:0xb9775e,anus:0xa04a44,
+ liver:0x7c2b23,gallbladder:0x3f7a3a,pancreas:0xe0b27a,spleen:0x6b2d4a,kidneys:0x8a3a35,adrenal:0xe0b040,urinary:0xd9b08a,repro:0xc98a86,
+ aorta:0xd0332d,arteries:0xd0332d,coronary:0xd0332d,veins:0x3557c0,pulmonary:0x5a56c8,ligament:0xe7ddcf,diaphragm:0xa8403a};
+const BRAIN=['frontal','parietal','temporal','occipital','limbic','insula','whitematter','basal','diencephalon','ventricles','brainstem','cerebellum','commissure','optic'];
+const BONEG=['cranium','facebones','zygomatic','maxilla','mandible','teeth','hyoid','nasalcart','cervical','thoracic','lumbar','disc','sacrum','ribs','costcart','sternum','clavicle','scapula','humerus','radius','ulna','hand','hip','femur','patella','tibia','fibula','foot'];
+const MUSG=['m_face','m_neck','m_back','m_chest','m_abd','m_pelvis','m_shoulder','m_arm','m_forearm','m_hand','m_hip','m_thigh','m_leg','m_foot','diaphragm','ligament'];
+const DIG=['teeth','gingiva','lips','esophagus','stomach','duodenum','smallint','colon','appendix','rectum','anus','liver','gallbladder','pancreas'];
+const SYS=[
+ ['brain','Тархи',BRAIN],
+ ['deep','Тархины гүн бүтэц',['limbic','basal','diencephalon','ventricles','brainstem','commissure','optic']],
+ ['face','Нүүр, толгой',['cranium','facebones','zygomatic','maxilla','mandible','teeth','gingiva','eye','ear','lips','brows','nasalcart','hyoid','optic','m_face']],
+ ['skeleton','Араг яс',BONEG],
+ ['muscles','Булчин',MUSG],
+ ['resp','Амьсгалын',['airway','lungs','diaphragm','nasalcart']],
+ ['cardio','Зүрх судас',['heart','coronary','aorta','arteries','veins','pulmonary']],
+ ['digest','Хоол боловсруулах',DIG],
+ ['urinary','Шээс ялгаруулах',['kidneys','urinary','adrenal']],
+ ['endo','Дотоод шүүрэл',['diencephalon','adrenal','pancreas','thymus','repro']],
+ ['repro','Нөхөн үржихүй',['repro','urinary']]
+];
+const REG=[
+ ['head','Толгой',[[-0.13,1.42,-0.15,0.13,1.70,0.16]]],
+ ['neck','Хүзүү',[[-0.09,1.33,-0.15,0.09,1.45,0.16]]],
+ ['chest','Цээж',[[-0.18,1.10,-0.15,0.18,1.36,0.16]]],
+ ['abdomen','Хэвлий',[[-0.17,0.92,-0.15,0.17,1.12,0.16]]],
+ ['pelvis','Аарцаг',[[-0.19,0.72,-0.15,0.19,0.95,0.16]]],
+ ['arm','Гар',[[0.16,0.6,-0.15,0.4,1.42,0.16],[-0.4,0.6,-0.15,-0.16,1.42,0.16]]],
+ ['leg','Хөл',[[-0.2,-0.02,-0.15,0.2,0.80,0.16]]]
+];
+
+/* ================= THREE SETUP ================= */
+const stage=$('stage');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+stage.prepend(renderer.domElement);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(32,1,0.002,50);camera.position.set(0.9,1.1,3.0);
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.target.set(0,0.85,0);controls.enableDamping=true;controls.dampingFactor=0.08;controls.minDistance=0.03;controls.maxDistance=25;controls.rotateSpeed=0.8;controls.zoomSpeed=1.1;controls.autoRotateSpeed=1.4;
+scene.add(new THREE.HemisphereLight(0xfff4e8,0x22303a,0.85));
+const key=new THREE.DirectionalLight(0xffffff,1.25);key.position.set(2,3,2.5);scene.add(key);
+const rim=new THREE.DirectionalLight(0x9fc4ff,0.7);rim.position.set(-2.5,1.5,-2.5);scene.add(rim);
+const fill=new THREE.DirectionalLight(0xffe2c8,0.35);fill.position.set(-2,0.5,2);scene.add(fill);
+const camLight=new THREE.PointLight(0xffffff,0.35,3);camera.add(camLight);scene.add(camera);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(0.5,64),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.28}));floor.rotation.x=-Math.PI/2;floor.position.y=-0.016;scene.add(floor);
+const root=new THREE.Group();scene.add(root);
+
+/* ================= STATE ================= */
+const state={on:{skin:true,muscle:false,bone:true,organ:true,vessel:true},skin:0.22,muscle:1,hidden:new Set(),sel:null,iso:null,full:false,kids:false};
+let MAN=null,G={},TOURD=null,CAP=new Set();
+const meshes=[],byId={},byGroup={},partById={},layerStatus={};
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const isVein=p=>p.g==='veins'||/vein|sinus/.test(p.e)&&p.g==='coronary';
+
+const KU={value:0},BOLU={value:new THREE.Vector3(0,-9,0)},BAU={value:0};
+const TRACTG=new Set(['esophagus','stomach','duodenum','smallint','colon','rectum']);
+const KIDS_HIDE=new Set(['repro','anus']);
+const SKIN_ID='FMA7163';
+const SKULLG=new Set(['mandible','maxilla','cranium','facebones','zygomatic','hyoid']);
+function makeMat(p){
+ const L=p.L;let col=GCOL[p.g]!=null?GCOL[p.g]:(L==='muscle'?0xb83b35:0xd0a090);
+ if(p.g==='coronary'&&isVein(p))col=0x3557c0;
+ if(p.g==='pulmonary'&&/vein/.test(p.e))col=0xc8403a;
+ const o={color:new THREE.Color(col),roughness:0.55,metalness:0};
+ if(L==='skin')Object.assign(o,{roughness:0.6,transparent:true,opacity:state.skin,depthWrite:false});
+ if(L==='bone')o.roughness=p.g==='teeth'?0.3:0.75;
+ if(L==='organ')o.roughness=0.42;
+ if(L==='vessel')o.roughness=0.32;
+ if(L==='muscle')o.roughness=0.5;
+ if(p.g==='eye'||p.g==='gallbladder')o.roughness=0.25;
+ const m=new THREE.MeshStandardMaterial(o);m.userData.base=new THREE.Color(0);
+ if(L==='skin'&&p.g!=='brows')m.onBeforeCompile=sh=>{sh.uniforms.uKids=KU;
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;uniform float uKids;').replace('#include <begin_vertex>','#include <begin_vertex>\nif(uKids>0.5&&abs(transformed.x)<0.043&&transformed.y>0.65&&transformed.y<0.802&&transformed.z>-0.05){transformed.y=0.802+(transformed.y-0.802)*0.05;transformed.z=clamp(transformed.z,-0.03,0.058);transformed.x*=0.85;}').replace('#include <project_vertex>','#include <project_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;uniform float uKids;')
+   .replace('#include <color_fragment>','#include <color_fragment>\nbool shorts=uKids>0.5&&vWP.y>0.68&&vWP.y<0.985&&abs(vWP.x)<0.215;\nif(shorts)diffuseColor.rgb=vec3(0.13,0.27,0.52);')
+   .replace('#include <output_fragment>','#include <output_fragment>\n{float fr=pow(1.0-abs(dot(normalize(normal),normalize(vViewPosition))),2.2);gl_FragColor.a=opacity>0.97?1.0:clamp(opacity*0.6+fr*min(0.7,opacity*3.2),0.0,1.0);if(!shorts)gl_FragColor.rgb=mix(gl_FragColor.rgb,gl_FragColor.rgb*1.08+vec3(0.03,0.02,0.015),fr*0.5);}');};
+ if(TRACTG.has(p.g))m.onBeforeCompile=sh=>{sh.uniforms.uBol=BOLU;sh.uniforms.uBA=BAU;
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform vec3 uBol;uniform float uBA;').replace('#include <begin_vertex>','#include <begin_vertex>\n{float bd=distance(transformed,uBol);transformed+=objectNormal*uBA*exp(-bd*bd/0.00018);}');};
+ if(L==='skin')m.side=THREE.FrontSide;
+ return m;
+}
+
+/* ================= LOADING ================= */
+async function fetchBin(L){
+ const r=await fetch(DATA+L+'.txt');if(!r.ok)throw new Error(L+': '+r.status);
+ const b64=(await r.text()).trim(),bin=atob(b64),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+ let buf=arr.buffer;const u=arr;
+ if(u[0]===0x1f&&u[1]===0x8b){
+  if(!('DecompressionStream' in window))throw new Error('Энэ хөтөч шахсан файл задалж чадахгүй байна. Chrome эсвэл Safari-ийн шинэ хувилбар ашиглана уу.');
+  buf=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();}
+ return buf;
+}
+function buildLayer(L,buf){
+ const mn=MAN.bbmin,mx=MAN.bbmax,q=[0,1,2].map(i=>(mx[i]-mn[i])/65535);
+ MAN.parts.forEach(p=>{if(p.L!==L)return;
+  const qv=new Uint16Array(buf,p.vo,p.vc*3),pos=new Float32Array(p.vc*3);
+  for(let i=0;i<pos.length;i+=3){pos[i]=mn[0]+qv[i]*q[0];pos[i+1]=mn[1]+qv[i+1]*q[1];pos[i+2]=mn[2]+qv[i+2]*q[2];}
+  const idx=p.u32?new Uint32Array(buf.slice(p.io,p.io+p.ic*4)):new Uint16Array(buf.slice(p.io,p.io+p.ic*2));
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setIndex(new THREE.BufferAttribute(idx,1));
+  g.computeVertexNormals();g.computeBoundingSphere();g.computeBoundingBox();
+  const m=new THREE.Mesh(g,makeMat(p));m.userData={p,id:p.id,g:p.g,layer:L};
+  if(L==='skin')m.renderOrder=3;
+  root.add(m);meshes.push(m);(byId[p.id]=byId[p.id]||[]).push(m);(byGroup[p.g]=byGroup[p.g]||[]).push(m);
+ });
+}
+async function loadLayer(L){
+ if(layerStatus[L]==='done')return;if(layerStatus[L]&&layerStatus[L].then)return layerStatus[L];
+ const pr=(async()=>{const buf=await fetchBin(L);buildLayer(L,buf);layerStatus[L]='done';applyVis();applyOpacity();if(state.sel)highlight(state.sel,true);if(tour.active)tourHL(tour.s,true);renderList();})();
+ layerStatus[L]=pr;renderChips();
+ try{await pr;}catch(e){layerStatus[L]=null;throw e;}finally{renderChips();}
+}
+
+/* ================= VISIBILITY ================= */
+let isoSet=null;
+function inRegion(m,r){const p=m.userData.p,c=p.c;
+ return REG.find(x=>x[0]===r)[2].some(q=>c[0]>=q[0]&&c[0]<=q[3]&&c[1]>=q[1]&&c[1]<=q[4]&&c[2]>=q[2]&&c[2]<=q[5]);}
+function isVisible(m){
+ const u=m.userData;if(state.kids&&(KIDS_HIDE.has(u.g)||u.p.e==='urethra'))return false;const iso=state.iso;
+ if(iso&&iso.t==='browse')return (br.all||br.ctx)?isoSet.has(u.g):u.id===brCur();
+ if(iso&&iso.t==='guide')return GD.mset.has(m)||GD.ctx.has(u.g);
+ if(EXP.on&&u.layer==='skin')return false;
+ if(state.hidden.has(u.id)&&!(EXP.on&&CAP.has(u.id)))return false;
+ if(!iso)return state.on[u.layer];
+ if(iso.t==='tour'){const k=TT[tour.s]?TT[tour.s].k:'';return isoSet.has(u.g)||TOUR_EXTRA.has(u.p.e)||((k==='mouth'||k==='pharynx')&&SKULLG.has(u.g));}
+ if(iso.t==='part')return u.id===iso.id;
+ if(iso.t==='grp')return u.g===iso.g;
+ if(iso.t==='sys')return isoSet.has(u.g);
+ return state.on[u.layer]&&inRegion(m,iso.r);
+}
+function applyVis(){meshes.forEach(m=>{m.visible=isVisible(m);});}
+const TRACT=new Set(['esophagus','stomach','duodenum','smallint','colon','rectum','anus']);
+const TOUR_EXTRA=new Set(['hyoid bone','thyroid cartilage']);let tourHot=new Set();
+function opFor(m){const u=m.userData,iso=state.iso;
+ if(iso&&iso.t==='browse')return (br.all||u.id===brCur())?1:0.12;
+ if(iso&&iso.t==='guide'){if(!GD.mset.has(m))return 0.12;return GD.i<0||m.userData.gu===GD.i?1:0.16;}
+ if(iso&&iso.t==='tour'){const k=TT[tour.s]?TT[tour.s].k:'';if(SKULLG.has(u.g))return 0.92;if(tourHot.has(m))return TRACT.has(u.g)?0.8:1;return TRACT.has(u.g)?0.42:0.3;}
+ if(iso&&iso.t!=='reg')return u.layer==='skin'?Math.max(state.skin,0.98):1;
+ return u.layer==='skin'?state.skin:u.layer==='muscle'?state.muscle:1;}
+function applyOpacity(){meshes.forEach(m=>{const mt=m.material,o=opFor(m);if(mt.opacity===o&&mt.transparent===(o<1))return;mt.opacity=o;mt.transparent=o<1;mt.depthWrite=o>0.9;mt.needsUpdate=true;});}
+function isoLabel(){const i=state.iso;if(!i)return '';if(i.t==='part')return partById[i.id].n;if(i.t==='grp')return G[i.g][0];if(i.t==='sys')return SYS.find(s=>s[0]===i.k)[1];return REG.find(r=>r[0]===i.r)[1];}
+async function setIso(iso){
+ state.iso=iso;isoSet=iso&&iso.t==='sys'?new Set(SYS.find(s=>s[0]===iso.k)[2]):null;
+ if(iso&&iso.t==='sys'&&[...isoSet].some(g=>MUSG.includes(g))&&layerStatus.muscle!=='done'){try{await loadLayer('muscle');}catch(e){}}
+ if(iso&&iso.t==='grp'&&G[iso.g]&&G[iso.g][3]==='muscle'&&layerStatus.muscle!=='done'){try{await loadLayer('muscle');}catch(e){}}
+ if(!iso&&EXP.on)EXP.on=false,$('tExp').setAttribute('aria-pressed','false');
+ applyVis();applyOpacity();if(EXP.on)expCompute();
+ if(state.sel&&!(byId[state.sel]||[]).some(m=>m.visible)){highlight(state.sel,false);state.sel=null;selCenter=null;}
+ $('isobar').hidden=!iso;$('isoTxt').textContent=iso?'Тусад нь: '+isoLabel():'';
+ renderIsoChips();renderInfo();renderList();renderFloat();
+ if(iso)focusVisible();else flyTo(V(0,0.85,0),V(0.9,1.1,3.0));
+}
+function focusBox(b){
+ if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3()).length();
+ let dir=camera.position.clone().sub(controls.target).normalize();if(dir.z<-0.2)dir=V(0.35,0.15,1).normalize();
+ const fov=camera.fov*Math.PI/180,fit=sz*0.6/Math.tan(fov/2)/Math.min(1,camera.aspect)+sz*0.15;
+ flyTo(c,c.clone().add(dir.multiplyScalar(Math.max(0.05,Math.min(4,fit)))));
+}
+function boxOfMeshes(ms){const b=new THREE.Box3();ms.forEach(m=>b.expandByObject(m));return b;}
+function focusVisible(){focusBox(boxOfMeshes(meshes.filter(m=>m.visible&&m.userData.layer!=='skin')));}
+function focusId(id){focusBox(boxOfMeshes(byId[id]||[]));}
+
+/* ================= SELECTION & INFO ================= */
+const tagEl=$('tag'),infoEl=$('info');let selCenter=null;
+function highlight(id,on){(byId[id]||[]).forEach(m=>{m.material.emissive.set(on?0x6a4310:0x000000);});}
+function select(id,focusIt){
+ if(state.sel)highlight(state.sel,false);
+ state.sel=id&&byId[id]?id:null;
+ if(state.sel){
+  state.hidden.delete(state.sel);
+  const L=partById[state.sel].L;
+  if(!state.iso&&!state.on[L]){state.on[L]=true;renderChips();}
+  if(state.iso&&state.iso.t!=='part'&&!byId[state.sel].some(isVisible)){state.iso=null;isoSet=null;$('isobar').hidden=true;renderIsoChips();applyOpacity();}
+  applyVis();highlight(state.sel,true);
+  selCenter=boxOfMeshes(byId[state.sel]).getCenter(new THREE.Vector3());
+  if(focusIt)focusId(state.sel);
+ }else selCenter=null;
+ renderInfo();renderList();renderFloat();
+}
+let anim=null;
+function flyTo(t,p,d){anim={t0:performance.now(),d:matchMedia('(prefers-reduced-motion: reduce)').matches?1:(d||750),ft:controls.target.clone(),fp:camera.position.clone(),tt:t,tp:p};}
+function humanBtn(id){return partById[id].L==='skin'?`<button class="btn pri" data-a="human">${state.skin>0.97?'Арьсыг тунгалаг болгох':'Бүтэн хүн болгох'}</button>`:'';}
+function isoBtns(id){const p=partById[id];
+ if(state.iso&&state.iso.t==='part'&&state.iso.id===id)return '<button class="btn pri" data-a="back">Бүтэн бие рүү буцах</button>';
+ const grpN=byGroup[p.g]?byGroup[p.g].length:0;
+ return '<button class="btn pri" data-a="iso">Ганцаар харах</button>'+(grpN>1&&!(state.iso&&state.iso.t==='grp'&&state.iso.g===p.g)?`<button class="btn" data-a="grp">«${G[p.g][0]}» бүлгийг харах</button>`:'');}
+function bindActs(el,id){el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const a=b.dataset.a;
+ if(a==='iso')setIso({t:'part',id});if(a==='grp')setIso({t:'grp',g:partById[id].g});if(a==='back')setIso(null);if(a==='focus')focusId(id);
+ if(a==='hide'){state.hidden.add(id);select(null);applyVis();}if(a==='clear')select(null);
+ if(a==='human')toggleHuman();
+ if(a==='eye')enterEye();
+ if(a==='unhide'){state.hidden.clear();applyVis();renderInfo();}
+ if(a==='exit')setFull(false);});}
+function unhideBtn(){if(!state.hidden.size)return '';const cap=[...state.hidden].every(x=>CAP.has(x));return `<button class="btn" data-a="unhide">${cap?'Гавлын тагийг харуулах':'Нуусныг сэргээх ('+state.hidden.size+')'}</button>`;}
+function renderInfo(){
+ const id=state.sel;
+ if(!id){
+  const g=state.iso&&state.iso.t==='grp'?G[state.iso.g]:null;
+  infoEl.className='info'+(g?'':' empty');
+  infoEl.innerHTML=g?`<h2>${g[0]}</h2><div class="la">${g[1]}</div><p>${g[2]}</p><div class="actions"><button class="btn" data-a="back">Бүтэн бие рүү буцах</button></div>`
+   :'<p>Биеийн аль нэг хэсэг дээр дарвал нэр, латин нэр, үүргийг энд харуулна. «Ганцаар харах» товчоор тухайн эрхтнийг дангаар нь эргүүлж, ойроос үзнэ.</p>'+(state.hidden.size?'<div class="actions">'+unhideBtn()+'</div>':'');
+  bindActs(infoEl,null);return;}
+ const p=partById[id],g=G[p.g],L=LC[p.L];infoEl.className='info';
+ const title=p.n,sub=p.n!==g[0]?`<div class="meta" style="--c:${L.c}"><i></i>${L.n} · ${g[0]}</div>`:`<div class="meta" style="--c:${L.c}"><i></i>${L.n}</div>`;
+ infoEl.innerHTML=`<h2>${title}</h2><div class="la">${g[1]}</div><div class="en">${p.e}</div>${sub}<p>${g[2]}</p><div class="actions">${p.g==='eye'?'<button class="btn pri" data-a="eye">Нүдийг задалж үзэх</button>':''}${humanBtn(id)}${isoBtns(id)}<button class="btn" data-a="focus">Ойртуулах</button><button class="btn" data-a="hide">Нуух</button><button class="btn" data-a="clear">Цуцлах</button>${unhideBtn()}</div>`;
+ bindActs(infoEl,id);
+}
+const fcard=$('fcard');
+function renderFloat(){
+ const id=state.sel;
+ if(!id)fcard.innerHTML='<div class="t"><p>Хэсэг дээр дарж нэрийг нь харна. Доорх давхаргуудыг асааж унтраана.</p></div><button class="btn" data-a="exit">Бүтэн дэлгэцээс гарах</button>';
+ else{const p=partById[id];fcard.innerHTML=`<div class="t"><b>${p.n}</b><i>${G[p.g][1]}</i></div>${humanBtn(id)}${isoBtns(id).replace(/<button class="btn" data-a="grp">.*?<\/button>/,'')}<button class="btn" data-a="focus">Ойртуулах</button><button class="btn" data-a="clear">✕</button>`;}
+ bindActs(fcard,id);
+}
+
+/* ================= PANELS ================= */
+const chipsEl=$('chips'),fchips=$('fchips');
+function renderChips(){[chipsEl,fchips].forEach(box=>{box.innerHTML='';LAYERS.forEach(l=>{const b=document.createElement('button');b.className='chip';
+ const busy=layerStatus[l.k]&&layerStatus[l.k].then;if(busy)b.classList.add('busy');
+ b.style.setProperty('--c',l.c);b.setAttribute('aria-pressed',state.on[l.k]);b.innerHTML=`<i></i>${l.n}${busy?' …':''}`;
+ b.onclick=async()=>{state.on[l.k]=!state.on[l.k];renderChips();
+  if(state.on[l.k]&&layerStatus[l.k]!=='done'){try{await loadLayer(l.k);}catch(e){state.on[l.k]=false;renderChips();showErr(e);}}
+  applyVis();if(state.sel&&!byId[state.sel].some(m=>m.visible))select(null);};box.appendChild(b);});});}
+const regChips=$('regChips'),sysChips=$('sysChips');
+function renderIsoChips(){
+ regChips.innerHTML='';sysChips.innerHTML='';
+ const mk=(box,label,on,fn)=>{const b=document.createElement('button');b.className='chip plain';b.textContent=label;b.setAttribute('aria-pressed',on);b.onclick=fn;box.appendChild(b);};
+ mk(regChips,'Бүтэн бие',!state.iso,()=>setIso(null));
+ REG.forEach(r=>mk(regChips,r[1],!!(state.iso&&state.iso.t==='reg'&&state.iso.r===r[0]),()=>setIso({t:'reg',r:r[0]})));
+ SYS.forEach(s=>{if(state.kids&&s[0]==='repro')return;mk(sysChips,s[1],!!(state.iso&&state.iso.t==='sys'&&state.iso.k===s[0]),()=>setIso({t:'sys',k:s[0]}));});
+}
+const plist=$('plist'),search=$('search');
+function norm(s){return s.toLowerCase();}
+function renderList(){
+ if(!MAN)return;const q=norm(search.value.trim());plist.innerHTML='';
+ if(q){
+  const hits=MAN.parts.filter(p=>!(state.kids&&KIDS_HIDE.has(p.g))).filter(p=>norm(p.n).includes(q)||norm(p.e).includes(q)||norm(G[p.g][0]).includes(q)).slice(0,60);
+  const row=document.createElement('div');row.className='row';
+  if(!hits.length)plist.innerHTML='<p class="note">Олдсонгүй. Өөр үгээр, эсвэл англи нэрээр нь хайгаад үзээрэй.</p>';
+  hits.forEach(p=>{const b=document.createElement('button');b.innerHTML=p.n+(p.L==='muscle'&&layerStatus.muscle!=='done'?'<small>булчин</small>':'');if(p.id===state.sel)b.className='on';
+   b.onclick=async()=>{if(p.L==='muscle'&&layerStatus.muscle!=='done'){try{await loadLayer('muscle');}catch(e){showErr(e);return;}}if(!state.on[p.L]){state.on[p.L]=true;renderChips();}select(p.id,true);};row.appendChild(b);});
+  plist.appendChild(row);return;}
+ LAYERS.forEach(l=>{const gs=Object.keys(G).filter(g=>G[g][3]===l.k&&!(state.kids&&KIDS_HIDE.has(g))&&MAN.parts.some(p=>p.g===g));if(!gs.length)return;
+  const box=document.createElement('div');box.innerHTML=`<h3 style="--c:${l.c}"><i></i>${l.n}</h3>`;const row=document.createElement('div');row.className='row';
+  gs.forEach(g=>{const n=MAN.parts.filter(p=>p.g===g).length;const b=document.createElement('button');b.innerHTML=G[g][0]+(n>1?`<small>${n}</small>`:'');
+   if(state.iso&&state.iso.t==='grp'&&state.iso.g===g)b.className='on';b.onclick=()=>{select(null);setIso({t:'grp',g});};row.appendChild(b);});
+  box.appendChild(row);plist.appendChild(box);});
+}
+search.addEventListener('input',renderList);
+
+const VIEWS=[['Бүтэн бие',[0,0.85,0],[0.9,1.1,3.0]],['Урд',[0,0.85,0],[0,0.95,3.1]],['Хажуу',[0,0.85,0],[3.1,0.95,0]],['Ар',[0,0.85,0],[0,0.95,-3.1]],['Нүүр',[0,1.52,0.06],[0.07,1.54,0.5]],['Тархи',[0,1.56,0],[0.28,1.72,0.42]],['Цээж',[0,1.24,0.02],[0.35,1.3,1.0]],['Хэвлий',[0,1.0,0.03],[0.3,1.08,0.95]],['Гар',[0.25,1.0,0],[0.95,1.1,0.8]],['Хөл',[0.05,0.42,0],[0.6,0.6,1.7]]];
+const viewsEl=$('views');
+{const b=document.createElement('button');b.className='go';b.textContent='Хоолны аялал';b.onclick=()=>startTour();viewsEl.appendChild(b);}
+[['Тархины хэсгүүд',()=>startGuide('brain')],['Хэвлийн хөндий',()=>startGuide('abd')],['Толгой задлах',async()=>{await setIso({t:'reg',r:'head'});setExplode(true);setTimeout(focusVisible,900);}],['Нүд задлах',()=>enterEye()]].forEach(([n,f])=>{const b=document.createElement('button');b.className='go';b.textContent=n;b.onclick=f;viewsEl.appendChild(b);});
+{const b=document.createElement('button');b.id='humanV';b.textContent='Бүтэн хүн';b.onclick=()=>toggleHuman();viewsEl.appendChild(b);}
+VIEWS.forEach(([n,t,p])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>flyTo(V(...t),V(...p));viewsEl.appendChild(b);});
+$('tourBtn').onclick=()=>startTour();
+
+const skinOp=$('skinOp'),musOp=$('musOp');
+function setSkin(v){state.skin=v;skinOp.value=Math.round(v*100);$('skinOut').textContent=skinOp.value+'%';applyOpacity();$('humanV').textContent=v>0.97?'Тунгалаг арьс':'Бүтэн хүн';}
+function toggleHuman(){const on=state.skin<0.97;if(state.iso&&state.iso.t!=='tour')setIso(null);state.on.skin=true;applyVis();renderChips();setSkin(on?1:0.22);renderInfo();renderFloat();}
+skinOp.oninput=()=>setSkin(skinOp.value/100);
+musOp.oninput=()=>{state.muscle=musOp.value/100;$('musOut').textContent=musOp.value+'%';applyOpacity();};
+
+const app=$('app'),tFull=$('tFull'),tRot=$('tRot');
+function setFull(on){
+ state.full=on;app.classList.toggle('full',on);tFull.setAttribute('aria-pressed',on);
+ try{if(on&&document.fullscreenEnabled&&!document.fullscreenElement){const r=document.documentElement.requestFullscreen();if(r&&r.catch)r.catch(()=>{});}
+  if(!on&&document.fullscreenElement){const r=document.exitFullscreen();if(r&&r.catch)r.catch(()=>{});}}catch(e){}
+ renderFloat();setTimeout(resize,60);
+}
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&state.full)setFull(false);});
+tFull.onclick=()=>setFull(!state.full);
+function zoom(f){tour.moved=true;const d=camera.position.clone().sub(controls.target);d.setLength(THREE.MathUtils.clamp(d.length()*f,controls.minDistance,controls.maxDistance));flyTo(controls.target.clone(),controls.target.clone().add(d),280);}
+$('tIn').onclick=()=>zoom(0.7);$('tOut').onclick=()=>zoom(1.43);
+tRot.onclick=()=>{controls.autoRotate=!controls.autoRotate;tRot.setAttribute('aria-pressed',controls.autoRotate);};
+$('isoX').onclick=()=>setIso(null);
+function showErr(e){const l=$('loading');l.hidden=false;$('loadTxt').textContent='Загвар ачаалахад алдаа гарлаа';$('loadSub').textContent=String(e&&e.message||e);console.error(e);}
+
+/* ================= FOOD TOUR ================= */
+const FOOD=[['Зажилсан хоол (болюс)','#c9a15a'],['Химус (зутан)','#e0cf94'],['Өтгөн','#7a4f2a']];
+const COL_NOTE='бүдүүн гэдсээр нийт 12–48 цаг';
+const TOUR=[
+ {k:'mouth',hl:{g:['teeth','gingiva','lips']},t:'Ам',la:'Cavitas oris',time:'5–30 секунд',f:0,sec:13,dist:0.3,dir:[0.85,0.12,0.75],r:0.0065,
+  p:'Ам нээгдэж, хоол орно. Эрүү дээш доош хөдөлж, шүд хоолыг хазаж, зажилж жижиглэнэ. Хэл түүнийг эргүүлж, бөөрөнхий болюс болгоно. Гурван хос шүлсний булчирхай өдөрт 1–1.5 л шүлс ялгаруулдаг. Шүлсэн дэх амилаза фермент цардуулыг задалж эхэлнэ.'},
+ {k:'pharynx',hl:{e:['hyoid bone','thyroid cartilage']},t:'Залгиур',la:'Pharynx',time:'~1 секунд',f:0,sec:5,dist:0.24,dir:[1,0.1,0.3],r:0.0065,
+  p:'Залгих рефлекс эхэлнэ. Хэл болюсыг хойш түлхэж, зөөлөн тагнай хамрын хөндийг, эпиглоттис амьсгалын замыг хаана. Хэлэн доорх яс ба бамбай мөгөөрс (төвөнх) дээш хөдөлдөг нь хүзүүн дээр мэдрэгддэг.'},
+ {k:'esophagus',hl:{g:['esophagus']},t:'Улаан хоолой',la:'Oesophagus',time:'5–8 секунд',f:0,sec:6,dist:0.5,dir:[1,0.15,0.4],r:0.0065,
+  p:'~25 см булчинлаг хоолой. Хоол очсон газар хана нь тэлж, ард нь булчин долгион мэт агшиж (перистальтик) болюсыг доош түлхэнэ. Тиймээс хөрвөж байсан ч хоол ходоодонд хүрнэ. Доод хаалтуур ходоодны хүчлийг буцааж оруулахгүй.'},
+ {k:'stomach',hl:{g:['stomach']},t:'Ходоод',la:'Gaster',time:'2–4 цаг',f:1,sec:8,dist:0.36,dir:[0.4,0.2,1],r:0.009,wob:true,
+  p:'Гурван давхар булчинтай хана хоолыг нухаж хутгана. Давсны хүчил (pH 1.5–3.5) нянг устгаж, пепсин уургийг задална. Хоол зутан мэт химус болж, пилорын хаалтуураар бага багаар гарна.'},
+ {k:'duodenum',hl:{g:['duodenum','liver','gallbladder','pancreas']},t:'Арван хоёр нугалаа гэдэс',la:'Duodenum + элэг, цөсний хүүдий, нойр булчирхай',time:'~30 минут',f:1,sec:7,dist:0.32,dir:[-0.25,0.25,1],r:0.0065,
+  p:'Энд туслах эрхтнүүд ажиллана. Элэгний үүсгэж, цөсний хүүдийд хадгалсан цөс өөх тосыг эмульсжүүлнэ. Нойр булчирхайн шүүс ходоодны хүчлийг саармагжуулж, уураг, өөх тос, нүүрс усыг задлах ферментүүд нэмнэ.'},
+ {k:'jejunum',hl:{e:['jejunum']},t:'Өлөн гэдэс',la:'Jejunum',time:'~2 цаг',f:1,sec:13,dist:0.3,dir:[0.2,0.3,1],r:0.006,
+  p:'Нарийн гэдэсний дунд хэсэг (~2.5 м). Хананд нь сая сая сэмж (villi) бий тул шимэгдэх талбай ~30 м² болно. Сахар, амин хүчил, ихэнх витамин энд цусанд шингэнэ.'},
+ {k:'ileum',hl:{e:['ileum']},t:'Цутгалан гэдэс',la:'Ileum',time:'2–3 цаг',f:1,sec:13,dist:0.3,dir:[0.1,0.25,1],r:0.006,
+  p:'Нарийн гэдэсний сүүлийн ~3.5 м. B12 витамин, цөсний хүчлийг буцааж шингээнэ. Энд нийт шим тэжээлийн 90% шимэгдэж дуусна.'},
+ {k:'cecum',hl:{g:['appendix'],e:['colon, nsn']},t:'Мухар гэдэс',la:'Caecum + appendix',time:COL_NOTE,f:1,sec:4,dist:0.24,dir:[-0.5,0.1,1],r:0.009,
+  p:'Шингээгдээгүй үлдэгдэл Баугины хавхлагаар бүдүүн гэдэс рүү орно. Хавхлага буцаж урсахаас сэргийлнэ. Мухар гэдэснээс ~9 см урт мухар олгойн сэжүүр унжина.'},
+ {k:'ascending',hl:{g:['colon']},t:'Өгсөх гэдэс',la:'Colon ascendens',time:COL_NOTE,f:1,sec:5,dist:0.32,dir:[-0.4,0.15,1],r:0.009,
+  p:'Баруун талаар дээш өгсөнө. Ус, натри, кали шимэгдэж эхэлнэ. Гэдэсний триллион бактери шингэцгүй эслэгийг исгэж, K витамин үүсгэнэ. Гадна талаар гурван туузан булчин (taenia) дагаж явна.'},
+ {k:'transverse',hl:{g:['colon']},t:'Хөндлөн гэдэс',la:'Colon transversum',time:COL_NOTE,f:2,sec:6,dist:0.36,dir:[0,0.2,1],r:0.009,
+  p:'Хэвлийг хөндлөн гатална. Ус шимэгдэх тусам үлдэгдэл өтгөрч, өтгөн болж эхэлнэ. Өдөрт 2–3 удаа хүчтэй «масс хөдөлгөөн» агуулгыг урагш түлхэнэ.'},
+ {k:'descending',hl:{g:['colon']},t:'Уруудах гэдэс',la:'Colon descendens',time:COL_NOTE,f:2,sec:5,dist:0.32,dir:[0.5,0.15,1],r:0.0085,
+  p:'Хатуурсан өтгөн зүүн талаар доош уруудна. Хоолны усны ~90% нь шимэгдсэн байна.'},
+ {k:'sigmoid',hl:{g:['colon']},t:'Тахир гэдэс',la:'Colon sigmoideum',time:'бие засах хүртэл',f:2,sec:5,dist:0.28,dir:[0.4,0.1,1],r:0.0085,
+  p:'«S» хэлбэртэй энэ хэсэгт өтгөн бие засах хүртэл хуримтлагдана.'},
+ {k:'rectum',hl:{g:['rectum']},t:'Шулуун гэдэс',la:'Rectum',time:'минут – хэдэн цаг',f:2,sec:5,dist:0.26,dir:[1,0.05,-0.2],r:0.009,
+  p:'Өтгөн орж шулуун гэдэс сунахад хананы мэдрэл тархи руу дохио өгнө. Ингэж бие засах хүсэл төрнө.'},
+ {k:'anus',hl:{g:['anus']},t:'Хошного',la:'Canalis analis, anus',time:'аяллын төгсгөл',f:2,sec:4,dist:0.2,dir:[0.6,-0.45,-1],r:0.006,
+  p:'Дотоод хаалтуур булчин өөрийн эрхгүй сулардаг. Гадна хаалтуурыг хүн өөрөө удирддаг тул бие засахаа хойшлуулж чадна. Ингээд хоолны аялал дуусна.'}
+];
+const DIGSET=new Set(DIG);
+let TT=TOUR;
+const tour={active:false,playing:false,u:0,s:0,speed:1,uB:[],curve:null,blend:0,moved:false,done:false,min:false};
+try{tour.min=localStorage.getItem('anat-tourmin')==='1';}catch(e){}
+const tourG=new THREE.Group();tourG.visible=false;scene.add(tourG);
+const bol=new THREE.Mesh(new THREE.IcosahedronGeometry(1,3),new THREE.MeshStandardMaterial({color:0xc9a15a,roughness:0.6,emissive:0x3a2208,depthTest:false,transparent:true,opacity:0.97}));bol.renderOrder=20;
+{const a=bol.geometry.attributes.position,v=new THREE.Vector3();for(let i=0;i<a.count;i++){v.fromBufferAttribute(a,i);v.multiplyScalar(1+0.12*Math.sin(v.x*7)*Math.sin(v.y*6+1)*Math.sin(v.z*5+2));a.setXYZ(i,v.x,v.y,v.z);}bol.geometry.computeVertexNormals();}
+const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');const gr=g.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(255,220,140,0.9)');gr.addColorStop(0.35,'rgba(255,190,90,0.32)');gr.addColorStop(1,'rgba(255,170,60,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);})();
+const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,depthTest:false,depthWrite:false,transparent:true,blending:THREE.AdditiveBlending}));glow.renderOrder=19;
+const bolG=new THREE.Group();bolG.add(glow,bol);tourG.add(bolG);
+const PCOL={g:['#ffd84a','Сахар'],a:['#5aa8ff','Амин хүчил'],f:['#7ad36b','Өөх тосны хүчил'],w:['#9fe8ff','Ус, давс'],h:['#d8f56a','Хүчил, фермент'],s:['#f2f2f2','Шүлс']};
+const CHEM={mouth:['Цардуул → сахар','шүлсний амилаза',['s']],pharynx:['Залгихад амьсгалын зам хаагдана','',[]],esophagus:['Задрал бараг болохгүй, зөвхөн дамжуулна','',[]],
+ stomach:['Уураг → жижиг хэсэг (пептид)','давсны хүчил + пепсин',['h']],duodenum:['Өөх тос → жижиг дусал; бүх фермент нэмэгдэнэ','цөс + нойр булчирхайн шүүс',['h','f']],
+ jejunum:['Сахар, амин хүчил, өөх тосны хүчил цусанд шингэнэ','сэмж (villi)',['g','a','f']],ileum:['B12 витамин, цөсний хүчил, үлдсэн шим тэжээл шингэнэ','',['g','a','f']],
+ cecum:['Ус, давс шингэж эхэлнэ','',['w']],ascending:['Ус, давс → цус; бактери эслэгийг исгэнэ','гэдэсний бактери',['w']],transverse:['Ус, давс → цус','',['w']],descending:['Ус шимэгдсээр өтгөн хатуурна','',['w']],sigmoid:['Өтгөн хуримтлагдана','',[]],rectum:['Бие засах дохио тархи руу','',[]],anus:['Гадагшлах','',[]]};
+const PART=[];{const pg=new THREE.SphereGeometry(1,8,6);for(let i=0;i<70;i++){const m=new THREE.Mesh(pg,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthTest:false,depthWrite:false}));m.renderOrder=21;m.visible=false;m.userData={life:0,v:new THREE.Vector3()};tourG.add(m);PART.push(m);}}
+let partAcc=0;
+function partTick(dt,on,types,center){
+ if(on&&types.length){partAcc+=dt*26;while(partAcc>1){partAcc--;const m=PART.find(x=>x.userData.life<=0);if(!m)break;const t=types[Math.floor(Math.random()*types.length)];m.material.color.set(PCOL[t][0]);
+  const d=V(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize();m.position.copy(center).addScaledVector(d,0.006);m.userData.v.copy(d).multiplyScalar(0.022+Math.random()*0.02);m.userData.life=1.3;m.visible=true;m.scale.setScalar(0.0024);}}
+ PART.forEach(m=>{const u=m.userData;if(u.life<=0)return;u.life-=dt;m.position.addScaledVector(u.v,dt);m.material.opacity=Math.max(0,Math.min(1,u.life/0.5));if(u.life<=0)m.visible=false;});}
+controls.addEventListener('start',()=>{tour.moved=true;anim=null;});
+function buildTourPath(){
+ const all=[],starts=[];TT.forEach(st=>{const d=TOURD.find(x=>x.k===st.k);starts.push(all.length);d.p.forEach(q=>all.push(V(q[0],q[1],q[2])));});
+ const curve=new THREE.CatmullRomCurve3(all,false,'centripetal');curve.arcLengthDivisions=6000;
+ const N=6000,L=[0];const prev=curve.getPoint(0),cur=new THREE.Vector3();
+ for(let i=1;i<=N;i++){curve.getPoint(i/N,cur);L.push(L[i-1]+cur.distanceTo(prev));prev.copy(cur);}
+ tour.uB=starts.map(i=>L[Math.round(i/(all.length-1)*N)]/L[N]);tour.uB.push(1);tour.curve=curve;
+}
+function hlMeshes(s){const h=TT[s].hl,out=[];(h.g||[]).forEach(g=>(byGroup[g]||[]).forEach(m=>out.push(m)));(h.e||[]).forEach(e=>meshes.forEach(m=>{if(m.userData.p.e===e)out.push(m);}));return out;}
+function tourHL(s,on){const hm=hlMeshes(s);hm.forEach(m=>m.material.emissive.set(on?0x5a3c0e:0x000000));if(on){tourHot=new Set(hm);applyOpacity();}}
+const tc=$('tourcard');let segFill=[];
+function renderTour(){
+ const s=tour.s,st=TT[s],fd=FOOD[st.f];tc.classList.toggle('min',tour.min);
+ tc.innerHTML=`<div class="tc-top"><span>Хоолны аялал · ${s+1}/${TT.length}</span><span class="sp"></span><span class="tc-state" style="--c:${fd[1]}"><i></i>${fd[0]}</span><button class="tc-tog" data-k="min" aria-expanded="${!tour.min}">${tour.min?'Тайлбар харуулах':'Тайлбар нуух'}<svg viewBox="0 0 24 24"><path d="${tour.min?'M6 15l6-6 6 6':'M6 9l6 6 6-6'}"/></svg></button></div>
+ <h3>${st.t}</h3><div class="tc-la">${st.la}</div>
+ <div class="tc-time">Хоол энд байх хугацаа: <b>${st.time}</b></div>
+ ${CHEM[st.k]?`<div class="tc-chem"><b>${CHEM[st.k][0]}</b>${CHEM[st.k][1]?` · ${CHEM[st.k][1]}`:''}${CHEM[st.k][2].map(t=>`<span class="pl"><i style="--c:${PCOL[t][0]}"></i>${PCOL[t][1]}</span>`).join('')}</div>`:''}
+ <p>${st.p}</p>${tour.done?`<p class="tc-end">Аялал дууслаа. Хоол амнаас хошного хүртэл ~9 метр замыг ердийн үед 24–72 цагт туулдаг. Шингэсэн шим тэжээл цусаар элэг рүү очиж, тэндээс бүх биед тараагдана.</p>
+ <div class="tc-sum"><div><b>Шингэлтэд тустай</b><ul><li>Сайтар, удаан зажлах</li><li>Хангалттай ус уух</li><li>Ногоо, жимс, бүхэл үр тариа (эслэг)</li><li>Тараг, айраг зэрэг исгэлэн сүү — ашигтай бактери</li><li>Хөдөлгөөн, гадаа тоглох</li><li>Тогтмол цагтаа хооллож, сайн унтах</li></ul></div><div><b>Шингэлтэд муу</b><ul><li>Хэт их чихэр, ундаа</li><li>Хэт тослог, түргэн хоол</li><li>Яаран, зажлахгүй залгих</li><li>Ус бага уух</li><li>Унтахын өмнө их идэх</li><li>Стресс, их удаан суух</li></ul></div></div>`:''}
+ <div class="tc-bar">${TT.map((x,i)=>`<button aria-label="${x.t}" title="${x.t}" data-i="${i}" class="${i===s?'cur':''}"><span style="width:${i<s||(i===s&&tour.done)?100:0}%"></span></button>`).join('')}</div>
+ <div class="tc-ctl"><button class="btn" data-k="prev" ${s===0?'disabled':''}>Өмнөх</button><button class="btn pri" data-k="play">${tour.done?'Дахин эхлэх':tour.playing?'Зогсоох':'Тоглуулах'}</button><button class="btn" data-k="next" ${s===TT.length-1?'disabled':''}>Дараах</button><button class="btn" data-k="speed" title="Хурд">${tour.speed}×</button><button class="btn x" data-k="close">Аяллаас гарах</button></div>`;
+ segFill=[...tc.querySelectorAll('.tc-bar span')];
+ tc.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>goStage(+b.dataset.i));
+ tc.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k;
+  if(k==='prev')goStage(tour.s-1);if(k==='next')goStage(tour.s+1);if(k==='play')togglePlay();
+  if(k==='speed'){tour.speed=tour.speed===1?2:tour.speed===2?0.5:1;renderTour();}if(k==='close')stopTour();
+  if(k==='min'){tour.min=!tour.min;try{localStorage.setItem('anat-tourmin',tour.min?'1':'0');}catch(e){}renderTour();}});
+}
+function onStage(){applyVis();tourHL(tour.s,true);tour.blend=80;tour.moved=false;renderTour();}
+function goStage(i){if(!tour.active||i<0||i>=TT.length)return;tourHL(tour.s,false);tour.s=i;tour.u=tour.uB[i];tour.done=false;onStage();}
+function togglePlay(){if(tour.done){tourHL(tour.s,false);tour.s=0;tour.u=0;tour.done=false;tour.playing=true;onStage();return;}tour.playing=!tour.playing;renderTour();}
+function startTour(){
+ if(tour.active||!TOURD||layerStatus.organ!=='done')return;if(GD.active)stopGuide(true);if(br.active)stopBrowse();select(null);if(state.full)setFull(false);
+ EXP.on=false;EXP.v=0;EXP.dirs.forEach((d,m)=>m.position.set(0,0,0));EXP.dirs=new Map();$('tExp').setAttribute('aria-pressed','false');
+ TT=state.kids?TOUR.filter(x=>x.k!=='anus'):TOUR;setupJaw();
+ state.iso={t:'tour'};isoSet=DIGSET;applyVis();applyOpacity();
+ app.classList.add('touring');buildTourPath();tourG.visible=true;
+ tour.active=true;tour.playing=true;tour.done=false;tour.s=0;tour.u=0;anim=null;
+ controls.autoRotate=false;tRot.setAttribute('aria-pressed','false');
+ const p=tour.curve.getPointAt(0);controls.target.copy(p);camera.position.copy(p).add(V(0.6,0.1,1).normalize().multiplyScalar(0.5));
+ bolG.position.copy(p);bol.scale.setScalar(TT[0].r);onStage();setTimeout(resize,60);
+}
+function stopTour(){if(!tour.active)return;tourHL(tour.s,false);setJaw(0);setLift(0);BAU.value=0;tour.active=false;tour.playing=false;tourG.visible=false;app.classList.remove('touring');state.iso=null;isoSet=null;setTimeout(resize,60);setIso(null);}
+const bw=new THREE.Vector3(),tcol=new THREE.Color(),bscale=new THREE.Vector3();
+const ease=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
+let JAW=null,LIFTM=null,liftV=0;
+function setupJaw(){if(JAW)return;const md=MAN.parts.find(p=>p.e==='mandible');if(!md)return;
+ const pv=V(0,md.bmax[1]-0.012,md.bmin[2]+0.014),jb=md.bmin[1];const c01=x=>x<0?0:x>1?1:x;
+ const rigid=meshes.filter(m=>{const e=m.userData.p.e;return e==='mandible'||e==='gingiva of lower jaw'||/ lower .*tooth$/.test(e);});
+ const soft=[];
+ meshes.forEach(m=>{const e=m.userData.p.e;if(e!=='skin'&&e!=='labial part of mouth, nsn')return;
+  const at=m.geometry.attributes.position,idx=[],w=[];
+  for(let i=0;i<at.count;i++){const x=at.getX(i),y=at.getY(i),z=at.getZ(i);let wt=0;
+   if(e==='skin'){if(y>jb-0.03&&y<1.472&&z>pv.z+0.004&&Math.abs(x)<0.08)wt=c01((1.4685-y)/0.008)*c01((z-pv.z-0.004)/0.04)*c01((0.08-Math.abs(x))/0.025)*c01((y-(jb-0.03))/0.02);}
+   else wt=y<1.4668?1:0;
+   if(wt>0){idx.push(i);w.push(wt);}}
+  const orig=new Float32Array(idx.length*3);idx.forEach((i,k)=>{orig[k*3]=at.getX(i);orig[k*3+1]=at.getY(i);orig[k*3+2]=at.getZ(i);});
+  soft.push({m,idx,w,orig});});
+ JAW={pv,rigid,soft,ang:0};}
+function setJaw(a){if(!JAW||Math.abs(a-JAW.ang)<1e-4)return;JAW.ang=a;const pv=JAW.pv,c=Math.cos(a),s=Math.sin(a);
+ JAW.rigid.forEach(m=>{m.rotation.x=a;m.position.set(0,pv.y-(pv.y*c-pv.z*s),pv.z-(pv.y*s+pv.z*c));});
+ JAW.soft.forEach(o=>{const at=o.m.geometry.attributes.position,arr=at.array;for(let k=0;k<o.idx.length;k++){const aa=a*o.w[k],cc=Math.cos(aa),ss=Math.sin(aa),i=o.idx[k]*3,ry=o.orig[k*3+1]-pv.y,rz=o.orig[k*3+2]-pv.z;arr[i+1]=pv.y+ry*cc-rz*ss;arr[i+2]=pv.z+ry*ss+rz*cc;}at.needsUpdate=true;});}
+function setLift(v){if(Math.abs(v-liftV)<1e-5)return;liftV=v;if(!LIFTM)LIFTM=meshes.filter(m=>TOUR_EXTRA.has(m.userData.p.e));LIFTM.forEach(m=>m.position.set(0,v,v*0.25));}
+function tourTick(dt){
+ const s=tour.s;
+ if(tour.playing){const a=tour.uB[s],b=tour.uB[s+1];tour.u+=(b-a)/TT[s].sec*tour.speed*dt;
+  if(tour.u>=b){if(s===TT.length-1){tour.u=1;tour.playing=false;tour.done=true;renderTour();}else{tourHL(s,false);tour.s=s+1;onStage();}}}
+ const S=TT[tour.s],a=tour.uB[tour.s],b=tour.uB[tour.s+1],p=Math.max(0,Math.min(1,(tour.u-a)/(b-a)));
+ let f=p,jaw=0,lift=0,sc=1;
+ if(S.k==='mouth'){f=p<0.32?0.8*ease(p/0.32):p<0.8?0.8:0.8+0.2*ease((p-0.8)/0.2);
+  jaw=p<0.04?0:p<0.3?0.3*ease((p-0.04)/0.22):p<0.8?0.15+0.15*Math.cos((p-0.3)/0.5*Math.PI*7):0;
+  sc=p<0.32?1.9:p<0.8?1.9-0.9*ease((p-0.32)/0.48):1;}
+ if(S.k==='pharynx')lift=Math.sin(Math.PI*p)*0.014;
+ setJaw(jaw);setLift(lift);
+ tour.curve.getPointAt(Math.min(1,Math.max(0,a+f*(b-a))),bw);
+ if(S.k==='mouth'&&p>0.32&&p<0.8){const t=(p-0.32)/0.48*Math.PI*7;bw.x+=0.006*Math.sin(t*0.5);bw.y+=0.0015*Math.cos(t);}
+ if(S.wob&&tour.playing){const t=performance.now();bw.x+=0.004*Math.sin(t/300);bw.y+=0.003*Math.cos(t/410);}
+ bolG.position.copy(bw);BOLU.value.copy(bw);BAU.value=0.0055;
+ partTick(dt,tour.playing,CHEM[S.k]?CHEM[S.k][2]:[],bw);
+ bol.scale.lerp(bscale.set(S.r*sc,S.r*0.9*sc,S.r*sc),0.12);glow.scale.setScalar(bol.scale.x*5);
+ bol.material.color.lerp(tcol.set(FOOD[S.f][1]),0.04);bol.rotation.y+=dt*0.8;bol.rotation.x+=dt*0.5;
+ const fs=segFill[tour.s];if(fs)fs.style.width=(p*100)+'%';
+ const d=bw.clone().sub(controls.target).multiplyScalar(0.12);controls.target.add(d);camera.position.add(d);
+ if(tour.blend>0&&!tour.moved){const want=V(...S.dir).normalize().multiplyScalar(S.dist);const off=camera.position.clone().sub(controls.target).lerp(want,0.06);camera.position.copy(controls.target).add(off);tour.blend--;}
+}
+document.addEventListener('keydown',e=>{
+ if(GD.active){if(e.key==='Escape')stopGuide();else if(e.key==='ArrowRight'){GD.i=Math.min(GD.units.length-1,GD.i+1);gShow();}else if(e.key==='ArrowLeft'){GD.i=Math.max(-1,GD.i-1);gShow();}return;}
+ if(br.active){if(e.key==='Escape')stopBrowse();else if(e.key==='ArrowRight')brStep(1);else if(e.key==='ArrowLeft')brStep(-1);return;}
+ if(EY.active){if(e.key==='Escape')exitScenes();return;}
+ if(PG.active){if(e.key==='Escape'){exitScenes();return;}if(e.key===' '&&!(e.target.closest&&e.target.closest('button,input'))){e.preventDefault();PG.playing=!PG.playing;renderPreg();}return;}
+ if(tour.active){if(e.key==='Escape')stopTour();else if(e.key===' '&&!(e.target.closest&&e.target.closest('button'))){e.preventDefault();togglePlay();}else if(e.key==='ArrowRight')goStage(tour.s+1);else if(e.key==='ArrowLeft')goStage(tour.s-1);return;}
+ if(e.key==='Escape'&&state.full)setFull(false);});
+
+/* ================= ONE-BY-ONE BROWSE ================= */
+const ORGG=['eye','heart','lungs','airway','thymus','esophagus','stomach','duodenum','smallint','colon','appendix','rectum','anus','liver','gallbladder','pancreas','spleen','kidneys','adrenal','urinary','repro','gingiva'];
+const VESG=['aorta','arteries','coronary','veins','pulmonary'];
+const BR_CATS=[['bone','Яс',BONEG],['muscle','Булчин',MUSG],['organ','Дотор эрхтэн',ORGG],['brain','Тархи',BRAIN],['vessel','Судас',VESG]];
+const br={active:false,cat:null,list:[],i:0,ctx:true,all:false,playing:false,acc:0};
+let brMode='';
+function brCur(){return br.list[br.i];}
+async function startBrowse(k){
+ if(!MAN)return;const c=BR_CATS.find(x=>x[0]===k);
+ if(c[2].some(g=>MUSG.includes(g))&&layerStatus.muscle!=='done'){try{await loadLayer('muscle');}catch(e){showErr(e);return;}}
+ if(tour.active)stopTour();if(GD.active)stopGuide(true);select(null);if(state.full)setFull(false);
+ const ord=c[2];
+ br.list=MAN.parts.filter(p=>ord.includes(p.g)&&byId[p.id]&&!(state.kids&&KIDS_HIDE.has(p.g))).sort((a,b)=>ord.indexOf(a.g)-ord.indexOf(b.g)||b.c[1]-a.c[1]||a.c[0]-b.c[0]).map(p=>p.id);
+ if(!br.list.length)return;
+ br.active=true;br.cat=c;br.i=0;br.all=false;br.playing=false;br.acc=0;brMode='';
+ state.iso={t:'browse'};isoSet=new Set(ord);app.classList.add('browsing');controls.autoRotate=false;tRot.setAttribute('aria-pressed','false');
+ brShow();setTimeout(()=>{resize();brFocus();},80);
+}
+function brFocus(){if(br.all)focusVisible();else focusId(brCur());}
+function brShow(){
+ meshes.forEach(m=>m.material.emissive.set(0x000000));
+ if(!br.all)(byId[brCur()]||[]).forEach(m=>m.material.emissive.set(0x4a320c));
+ applyVis();applyOpacity();brFocus();
+ if(br.all?brMode!=='all':brMode!=='item')renderBrowse();else brText();
+}
+function brStep(d){
+ if(br.all){if(d<0){br.all=false;br.i=br.list.length-1;brShow();}return;}
+ const n=br.i+d;if(n<0)return;
+ if(n>=br.list.length){br.all=true;br.playing=false;brShow();return;}
+ br.i=n;brShow();
+}
+function stopBrowse(){if(!br.active)return;br.active=false;br.playing=false;meshes.forEach(m=>m.material.emissive.set(0x000000));app.classList.remove('browsing');state.iso=null;isoSet=null;setTimeout(resize,60);setIso(null);}
+const bcard=$('browsecard');
+function renderBrowse(){
+ const c=br.cat,n=br.list.length;
+ if(br.all){brMode='all';
+  bcard.innerHTML=`<div class="tc-top"><span>${c[1]} · бүгд</span></div><h3>Бүх ${c[1].toLowerCase()} · ${n}</h3><p>Нэг бүрчлэн үзэж дууслаа. Одоо бүгдийг хамт харж байна. Эргүүлж, томруулж, аль нэг дээр нь дарж нэрийг нь хараарай.</p><div class="tc-ctl"><button class="btn" data-b="back">Нэг бүрчлэн рүү буцах</button><button class="btn x" data-b="close">Гарах</button></div>`;}
+ else{brMode='item';
+  bcard.innerHTML=`<div class="tc-top"><span id="brIdx"></span><span class="sp"></span><label class="tc-ctx"><input type="checkbox" id="brCtx" ${br.ctx?'checked':''}>Бусдыг бүдэг харуулах</label></div>
+  <h3 id="brName"></h3><div class="tc-la" id="brLa"></div><div class="tc-time" id="brEn"></div><p id="brDesc"></p>
+  <input class="brr" type="range" id="brRange" min="0" max="${n-1}" value="${br.i}" aria-label="Дараалал">
+  <div class="tc-ctl"><button class="btn" data-b="prev">Өмнөх</button><button class="btn" data-b="play" id="brPlay"></button><button class="btn" data-b="next" id="brNext"></button><button class="btn pri" data-b="all">Бүгдийг харах</button><button class="btn x" data-b="close">Гарах</button></div>`;
+  $('brCtx').onchange=e=>{br.ctx=e.target.checked;applyVis();applyOpacity();};
+  const rg=$('brRange');rg.oninput=()=>{br.i=+rg.value;br.all=false;brShow();};
+  brText();}
+ bcard.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>{const k=b.dataset.b;
+  if(k==='prev')brStep(-1);if(k==='next')brStep(1);if(k==='play'){br.playing=!br.playing;br.acc=0;brText();}
+  if(k==='all'){br.all=true;br.playing=false;brShow();}if(k==='back'){br.all=false;brShow();}if(k==='close')stopBrowse();});
+}
+function brText(){if(brMode!=='item')return;const p=partById[brCur()],g=G[p.g],n=br.list.length;
+ $('brIdx').textContent=`${br.cat[1]} · ${br.i+1}/${n}`;$('brName').textContent=p.n;$('brLa').textContent=g[1];
+ $('brEn').textContent=(g[0]!==p.n?g[0]+' · ':'')+p.e;$('brDesc').textContent=g[2];$('brRange').value=br.i;
+ bcard.querySelector('[data-b=prev]').disabled=br.i===0;$('brNext').textContent=br.i===n-1?'Бүгдийг харах':'Дараах';$('brPlay').textContent=br.playing?'Зогсоох':'Автоматаар';}
+function renderBrChips(){const box=$('brChips');box.innerHTML='';BR_CATS.forEach(c=>{const b=document.createElement('button');b.className='chip plain';b.textContent=c[1];b.setAttribute('aria-pressed','false');b.onclick=()=>startBrowse(c[0]);box.appendChild(b);});}
+
+/* ================= PREGNANCY: HOW A BABY GROWS (day by day) ================= */
+// days after fertilization; Carnegie stages per UNSW Embryology table; fetal sizes are typical averages
+const PGS=[
+ [0,'1-р хоног · Үр тогтох','Карнеги 1 · 0.1 мм','Эхийн өндгөн эс ба эцгийн эр бэлгийн эс нийлнэ. Нэг эсэд эхийн ба эцгийн хоёр бөөм (пронуклей) хэдэн цагийн дотор ойртож нийлээд, хүүхдийн бүх удамшлын мэдээлэл бүхий зигот үүснэ.'],
+ [1.3,'2-р хоног · 2 эс','Карнеги 2 · 0.1 мм','Анхны хуваагдал ~30 цагийн дараа болно. Эсүүд томордоггүй, харин хуваагдах бүрдээ жижгэрсээр байна.'],
+ [2,'2–3-р хоног · 4 → 8 эс','Карнеги 2 · 0.1 мм','~12–20 цаг тутам хуваагдана. 8 эстэй болоход эсүүд бие биедээ наалдаж нягтарна (компакц). Энэ хооронд умайн хоолойгоор умай руу явсаар байна.'],
+ [3.2,'4-р хоног · Морула','Карнеги 2 · 16–32 эс','Бөөрөлзгөнө шиг бөөгнөрөл болно (морула — латинаар «бөөрөлзгөнө»). Умайд хүрч ирнэ.'],
+ [4.2,'4–5-р хоног · Бластоцист','Карнеги 3 · ~100 эс · 0.2 мм','Дотор нь шингэнтэй хөндий үүснэ. Нэг талд нь бөөгнөрсөн дотоод эсүүд — ирээдүйн хүүхэд. Гадна давхарга (трофобласт) — ирээдүйн ихэс.'],
+ [5.2,'5–6-р хоног · Бүрхүүлээс гарах','Карнеги 4 · 0.2 мм','Бластоцист тунгалаг бүрхүүлээ (zona pellucida) цоолж гараад умайн хананд наалдана.'],
+ [7,'7–12-р хоног · Умайд суух','Карнеги 5 · 0.1–0.2 мм','Трофобласт умайн хананд шигдэж, ээжийн цусны судастай холбогдоно. Жирэмсний даавар (hCG) ялгарч эхэлдэг тул жирэмсний сорил энэ дааврыг илрүүлдэг.'],
+ [13,'13–15-р хоног · Хоёр давхар диск','Карнеги 6 · 0.2 мм','Үр хөврөл нь хоёр бөмбөлгийн — дээр нь амнион (ирээдүйн усан бүрхүүл), доор нь шар уут — дунд орших хавтгай диск. Анхдагч зураас гарч, биеийн толгой, сүүл, баруун, зүүн тал тодорхойлогдоно.'],
+ [15,'15–17-р хоног · Гурван давхарга','Карнеги 7 · 0.4 мм','Гаструляц: эсүүд анхдагч зураасаар дотогш нүүж, гурван үр давхарга үүснэ. Гадна давхаргаас арьс, мэдрэл; дундаас яс, булчин, зүрх, цус; дотроос гэдэс, уушги, элэг үүснэ.'],
+ [17,'17–19-р хоног · Мэдрэлийн хавтан','Карнеги 8 · 1–1.5 мм','Дискийн нурууны тал зузаарч мэдрэлийн хавтан болно — ирээдүйн тархи, нугасны эх. Голд нь мэдрэлийн ховил гарна.'],
+ [19,'19–21-р хоног · Анхны сомитууд','Карнеги 9 · 1.5–2.5 мм','Ховилын хоёр талаар анхны 1–3 хос сомит (ирээдүйн нугалам, нурууны булчин, арьс) гарна. Мэдрэлийн атираа өргөгдөж, толгойн нугалаа ба зүрхний эх тавигдана.'],
+ [22,'22–23-р хоног · Зүрх цохилно','Карнеги 10 · 2–3.5 мм','Хоолой хэлбэрийн зүрх ~22 дахь хоногт цохилж эхэлнэ — хамгийн анх ажилладаг эрхтэн. Мэдрэлийн хоолой голоосоо «цахилгаан товч» шиг хаагдаж эхэлнэ. 4–12 хос сомит.'],
+ [23.5,'23–26-р хоног · Толгойн нүх хаагдана','Карнеги 11 · 2.5–4.5 мм','Мэдрэлийн хоолойн толгойн үзүүр хаагдана. 13–20 хос сомит. Чихний эх (сонсголын нүх) гарч, бие «С» үсэг шиг нугарна.'],
+ [26,'26–30-р хоног · Гарын нахиа','Карнеги 12 · 3–5 мм','Мэдрэлийн хоолойн сүүлний үзүүр хаагдана. Гарын нахиа цухуйна. 21–29 хос сомит. Хүзүүн дээр залгиурын нумууд — ирээдүйн эрүү, нүүр, хүзүүний эх — тодорно.'],
+ [28,'28–32-р хоног · Хөлийн нахиа','Карнеги 13 · 4–6 мм','Хөлийн нахиа гарна. Нүдний болорын эх (линзийн ялтас) тавигдана. Сүүл тод, ~30 хос сомит.'],
+ [31,'31–35-р хоног · Нүдний аяга','Карнеги 14 · 5–7 мм','Нүдний аяга үүсч, тархины хагасууд томорч эхэлнэ. Гарын нахиа уртасна.'],
+ [35,'35–38-р хоног · Гарын алга','Карнеги 15 · 7–9 мм','Гарын үзүүр хавтгай алга болно. Хамрын нүх гарч ирнэ. Толгой их биеэсээ том болно.'],
+ [37,'37–42-р хоног · Хөлийн ул','Карнеги 16 · 8–11 мм','Хөлийн ул тавигдана. Гадна чихний 6 жижиг товгор гарна. Нүдэнд пигмент орж харласан харагдана.'],
+ [42,'42–44-р хоног · Хурууны туяа','Карнеги 17 · 11–14 мм','Алган дээр 5 хурууны туяа (зураас) тодорно. Элэг томорч гэдэс товойно.'],
+ [44,'44–48-р хоног · Яс бүрэлдэнэ','Карнеги 18 · 13–17 мм','Яс хатуурч (ясжилт) эхэлнэ. Хөлийн хурууны туяа гарна. Зовхины атираа үүснэ.'],
+ [48,'48–51-р хоног · Бие тэнийнэ','Карнеги 19 · 16–18 мм','Их бие тэнийж, хүзүү тодорно. Сүүл багасч эхэлнэ.'],
+ [51,'51–53-р хоног · Тохой нугарна','Карнеги 20 · 18–22 мм','Гар уртсаж, тохойгоороо нугарна. Хуруунууд хоорондоо салж эхэлнэ.'],
+ [53,'53–54-р хоног · Хуруунууд салсан','Карнеги 21 · 22–24 мм','Гарын хуруунууд бүрэн салж, гарууд биеийн урд нийлнэ. Хөлийн хуруунууд салж байна.'],
+ [54,'54–56-р хоног · Зовхи, чих','Карнеги 22 · 23–28 мм','Зовхи нүдийг бүрхэж эхэлж, гадна чих хэлбэржинэ.'],
+ [56,'56–60-р хоног · Үр хөврөлийн үе дуусна','Карнеги 23 · 27–31 мм','Толгой бөөрөнхий болж, сүүл алга болно. Бүх гол эрхтэн тавигдсан тул одооноос «ураг» гэж нэрлэнэ.'],
+ [70,'Жирэмсний 12 долоо хоног','6 см · 14 г · чавга','Хумс ургаж, хуруугаа атгаж чадна. Бөөр шээс ялгаруулж эхэлнэ. Нүүр царай хүнийх шиг болсон.'],
+ [84,'14 долоо хоног','9 см · 45 г · нимбэг','Хүзүү уртсаж, толгойгоо өргөнө. Хуруугаа хөхөж, нүүрээ үрчийлгэнэ.'],
+ [98,'16 долоо хоног','12 см · 100 г · авокадо','Яс хатуурч, нүд аажмаар хөдөлнө. Зүрх өдөрт ~25 л цус шахна.'],
+ [112,'18 долоо хоног','14 см · 190 г · чинжүү','Чих байрандаа орж, дуу чимээ сонсож эхэлнэ.'],
+ [126,'20 долоо хоног','25 см (толгойноос өсгий хүртэл) · 300 г · гадил','Ээж нь өшиглөхийг мэдэрнэ. Арьсыг цагаан тослог бүрхүүл (vernix) хамгаална.'],
+ [140,'22 долоо хоног','28 см · 430 г','Хөмсөг, сормуус ургана. Уруул тодорно.'],
+ [154,'24 долоо хоног','30 см · 600 г · эрдэнэ шиш','Уушгинд амьсгалд хэрэгтэй сурфактант үүсч эхэлнэ.'],
+ [168,'26 долоо хоног','35 см · 760 г','Нүд нээгдэж эхэлнэ. Хурууны хээ бүрэлдэнэ.'],
+ [182,'28 долоо хоног','37 см · 1 кг · хаш','Нүдээ анивчиж, гэрэлд хариу үйлдэл үзүүлнэ. Зүүд зүүдэлдэг (REM) нойртой болно.'],
+ [196,'30 долоо хоног','40 см · 1.3 кг','Тархины атираа хурдан нэмэгдэнэ. Биеийн дулаанаа өөрөө барьж эхэлнэ.'],
+ [210,'32 долоо хоног','42 см · 1.7 кг · хулуу','Арьсан доор өөх хуримтлагдаж, хумс урт болно.'],
+ [224,'34 долоо хоног','45 см · 2.1 кг · хан боргоцой','Уушги, мэдрэлийн систем боловсорч байна.'],
+ [238,'36 долоо хоног','47 см · 2.6 кг · амтат гуа','Ихэнх хүүхэд толгойгоо доош эргүүлж төрөхөд бэлдэнэ.'],
+ [252,'38 долоо хоног','49 см · 3.1 кг','Бүх эрхтэн боловсорсон, төрөхөд бэлэн.'],
+ [266,'40 долоо хоног · Төрөлт','50 см · 3.4 кг · тарвас','Хүүхэд төрж, анхны амьсгалаа авна!']
+];
+const PG={active:false,scene:new THREE.Scene(),d:0,playing:true,speed:1,built:false,saved:null,stageI:-1,t:0,fw:-99,ew:-99,dw:-99,drag:false,min:false};
+const c01=x=>x<0?0:x>1?1:x,sm=(a,b,x)=>ease((x-a)/(b-a));
+function lerpT(tab,w){if(w<=tab[0][0])return tab[0][1];for(let i=1;i<tab.length;i++)if(w<=tab[i][0]){const a=tab[i-1],b=tab[i],u=(w-a[0])/(b[0]-a[0]);return a[1]+(b[1]-a[1])*u;}return tab[tab.length-1][1];}
+function pmat(col,o){o=o||{};const m=new THREE.MeshStandardMaterial({color:col,roughness:o.r!=null?o.r:0.5,transparent:true,opacity:o.op!=null?o.op:1,side:o.side||THREE.FrontSide,depthWrite:o.dw!==false});m.userData.baseOp=m.opacity;m.userData.dw=o.dw!==false;
+ if(o.fres)m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <output_fragment>','#include <output_fragment>\n{float fr=pow(1.0-abs(dot(normalize(normal),normalize(vViewPosition))),2.0);gl_FragColor.a=clamp(opacity*(0.35+fr*1.7),0.0,1.0);}');};
+ return m;}
+function fadeObj(obj,a){obj.visible=a>0.003;if(!obj.visible)return;obj.traverse(o=>{if(o.material&&o.material.userData.baseOp!=null){o.material.opacity=o.material.userData.baseOp*a;o.material.depthWrite=a>0.98&&o.material.userData.dw&&o.material.userData.baseOp>0.95;}});}
+function ptube(pts,rf,mat,seg,rad,caps){seg=seg||40;rad=rad||12;const c=new THREE.CatmullRomCurve3(pts);const g=new THREE.TubeGeometry(c,seg,1,rad,false);const at=g.attributes.position,v=new THREE.Vector3(),P=new THREE.Vector3();
+ for(let i=0;i<=seg;i++){c.getPointAt(i/seg,P);const r=typeof rf==='function'?rf(i/seg):rf;for(let j=0;j<=rad;j++){const k=i*(rad+1)+j;v.fromBufferAttribute(at,k).sub(P).multiplyScalar(r).add(P);at.setXYZ(k,v.x,v.y,v.z);}}
+ g.computeVertexNormals();const grp=new THREE.Group();grp.add(new THREE.Mesh(g,mat));
+ if(caps!==false)[0,1].forEach(t=>{const r=typeof rf==='function'?rf(t):rf;const s=new THREE.Mesh(new THREE.SphereGeometry(r,rad,8),mat);s.position.copy(c.getPointAt(t));grp.add(s);});return grp;}
+function sph(mat,pos,sc,seg){const m=new THREE.Mesh(new THREE.SphereGeometry(1,seg||24,Math.round((seg||24)*0.7)),mat);m.position.copy(pos);m.scale.set(sc[0],sc[1],sc[2]);return m;}
+function disposeGroup(g){if(!g)return;g.traverse(o=>{if(o.geometry)o.geometry.dispose();});if(g.parent)g.parent.remove(g);}
+function fib(n,r){const out=[];for(let i=0;i<n;i++){const y=1-2*(i+0.5)/n,q=Math.sqrt(1-y*y),ph=i*2.399963;out.push(V(Math.cos(ph)*q*r,y*r,Math.sin(ph)*q*r));}return out;}
+const CELLP={1:[V(0,0,0)],2:[V(-1,0,0),V(1,0,0)],4:[V(1,1,1),V(-1,-1,1),V(-1,1,-1),V(1,-1,-1)].map(v=>v.normalize()),8:[V(1,1,1),V(1,1,-1),V(1,-1,1),V(1,-1,-1),V(-1,1,1),V(-1,1,-1),V(-1,-1,1),V(-1,-1,-1)].map(v=>v.normalize()),16:fib(16,1)};
+function pgInit(){if(PG.built)return;PG.built=true;const S=PG.scene;
+ S.add(new THREE.HemisphereLight(0xfff0ea,0x2a1c22,0.95));const k1=new THREE.DirectionalLight(0xffffff,1.15);k1.position.set(1.5,2.2,2.5);S.add(k1);
+ const k2=new THREE.DirectionalLight(0xffc8d4,0.55);k2.position.set(-2,0.4,-2);S.add(k2);const k3=new THREE.DirectionalLight(0xffe8d8,0.35);k3.position.set(-1.5,-1,2);S.add(k3);
+ PG.early=new THREE.Group();PG.early.scale.setScalar(1.5);S.add(PG.early);
+ PG.zona=new THREE.Mesh(new THREE.SphereGeometry(0.5,48,32),pmat(0xf3e6cf,{op:0.32,fres:true,dw:false}));PG.zona.renderOrder=6;PG.early.add(PG.zona);
+ PG.cells=[];const cm=pmat(0xf2d2bf,{r:0.45,op:1});PG.cellMat=cm;for(let i=0;i<16;i++){const c=new THREE.Mesh(new THREE.SphereGeometry(1,28,20),cm);c.scale.setScalar(0.001);PG.early.add(c);PG.cells.push(c);}
+ PG.pron=[0,1].map(i=>{const m=new THREE.Mesh(new THREE.SphereGeometry(0.07,20,14),pmat(i?0x9a6b8f:0xb07a6a,{op:1,r:0.4}));PG.early.add(m);return m;});
+ PG.sperm=[];const spm=pmat(0xe8eef4,{r:0.4});for(let i=0;i<5;i++){const g=new THREE.Group();g.add(sph(spm,V(0,0,0),[0.018,0.013,0.028],14));
+  const tl=new THREE.Mesh(new THREE.CylinderGeometry(0.0035,0.001,0.24,6,16),spm);tl.rotation.x=Math.PI/2;tl.position.z=-0.14;g.add(tl);g.userData.tail=tl;
+  g.userData.dir=fib(5,1)[i];PG.early.add(g);PG.sperm.push(g);}
+ PG.blast=new THREE.Group();PG.blast.scale.setScalar(1.5);S.add(PG.blast);
+ const bm=pmat(0xf0cdb8,{r:0.5});fib(70,0.4).forEach(p=>{const c=new THREE.Mesh(new THREE.SphereGeometry(0.07,14,10),bm);c.position.copy(p);c.scale.set(1.1,1.1,0.72);c.lookAt(0,0,0);PG.blast.add(c);});
+ const icm=pmat(0xe7a89e,{r:0.5});for(let i=0;i<10;i++){const a=i*2.4,rr=0.06*Math.sqrt(i);PG.blast.add(sph(icm,V(Math.cos(a)*rr,0.27-0.02*(i%3),Math.sin(a)*rr),[0.07,0.06,0.07],14));}
+ PG.blast.add(new THREE.Mesh(new THREE.SphereGeometry(0.37,32,20),pmat(0xbfdaf0,{op:0.2,dw:false})));
+ PG.bzona=new THREE.Mesh(new THREE.SphereGeometry(0.5,48,32),pmat(0xf3e6cf,{op:0.3,fres:true,dw:false}));PG.bzona.renderOrder=6;PG.blast.add(PG.bzona);
+ const wg=new THREE.PlaneGeometry(5,5,90,90),wa=wg.attributes.position;for(let i=0;i<wa.count;i++){const x=wa.getX(i),y=wa.getY(i);wa.setZ(i,0.05*Math.sin(x*6)*Math.cos(y*5)+0.025*Math.sin(x*15+y*11));}wg.computeVertexNormals();
+ PG.wall=new THREE.Mesh(wg,pmat(0xc96f7d,{r:0.7}));PG.wall.rotation.x=-Math.PI/2;PG.wall.position.y=-0.66;S.add(PG.wall);
+ PG.womb=new THREE.Group();S.add(PG.womb);
+ const ug=new THREE.SphereGeometry(1,64,48);{const a=ug.attributes.position,v=new THREE.Vector3();for(let i=0;i<a.count;i++){v.fromBufferAttribute(a,i);const k=1+0.16*v.y;v.x*=k;v.z*=k*0.92;v.y*=1.12;a.setXYZ(i,v.x,v.y,v.z);}ug.computeVertexNormals();}
+ PG.uterus=new THREE.Mesh(ug,pmat(0xd6727e,{op:0.2,fres:true,dw:false}));PG.uterus.renderOrder=6;PG.womb.add(PG.uterus);
+ PG.sac=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),pmat(0xa8cfe6,{op:0.11,fres:true,dw:false}));PG.sac.renderOrder=5;PG.womb.add(PG.sac);
+ PG.plac=new THREE.Mesh(new THREE.SphereGeometry(1,40,24),pmat(0x8f2a37,{r:0.6}));PG.womb.add(PG.plac);
+ PG.cordMat=pmat(0xdcc7d3,{r:0.35});PG.cord=null;PG.disc=null;PG.embryo=null;PG.fetus=null;
+}
+// bilaminar / trilaminar disc between amnion and yolk sac (days 12–21)
+function buildDisc(d){const g=new THREE.Group();
+ const amn=sph(pmat(0xa9d2ef,{op:0.35,fres:true,dw:false}),V(0,0.27,0),[0.42,0.3,0.36],32);amn.renderOrder=4;g.add(amn);
+ const yolk=sph(pmat(0xf0cf72,{op:0.75,r:0.5}),V(0,-0.36,0),[0.4,0.38,0.38],32);g.add(yolk);
+ const disc=new THREE.Mesh(new THREE.CylinderGeometry(1,1,0.035,48),pmat(0xeab3a6,{r:0.45}));disc.scale.set(0.4,1,0.3);g.add(disc);
+ const dk=pmat(0x8a4250,{r:0.5});
+ if(d>=13.5){const len=0.1+0.12*c01((d-13.5)/3)*(1-0.5*c01((d-18)/3));const st=new THREE.Mesh(new THREE.BoxGeometry(0.018,0.012,len),dk);st.position.set(0,0.022,-0.27+len/2);g.add(st);
+  g.add(sph(dk,V(0,0.026,-0.27+len),[0.025,0.015,0.025],12));}
+ if(d>=16.5){const np=sph(pmat(0xf6d0c4,{r:0.4}),V(0,0.024,0.06),[0.22,0.01,0.2],32);g.add(np);}
+ if(d>=18){[1,-1].forEach(sx=>{g.add(ptube([V(sx*0.05,0.03,-0.16),V(sx*0.06,0.04,0.0),V(sx*0.09,0.045,0.15)],0.016+0.01*c01((d-18)/3),pmat(0xf1c2b4,{r:0.4}),20,10));});
+  g.add(ptube([V(0,0.022,-0.17),V(0,0.022,0.0),V(0,0.022,0.16)],0.008,dk,12,6));}
+ if(d>=19){const n=Math.min(3,1+Math.floor((d-19)*1.2));for(let i=0;i<n;i++)[1,-1].forEach(sx=>g.add(sph(pmat(0xf0bcaa,{r:0.4}),V(sx*0.085,0.035,-0.03-i*0.05),[0.022,0.018,0.02],12)));}
+ g.add(ptube([V(0,0,-0.29),V(0,-0.05,-0.42),V(0,-0.02,-0.58)],0.04,pmat(0xdcc7d3,{r:0.4}),12,10));
+ g.userData.belly=V(0,0,-0.58);g.userData.noCord=true;return g;}
+// curled embryo, features keyed to Carnegie stages (days 19–62)
+function buildEmbryo(d){
+ const g=new THREE.Group(),mat=pmat(0xeea19c,{r:0.42,op:0.9}),dk=pmat(0x6a2c3a,{r:0.4}),lt=pmat(0xf6d6cf,{r:0.4});
+ const A=lerpT([[19,1.1],[22,2.2],[26,3.9],[40,4.2],[48,3.5],[53,2.9],[60,2.4]],d),L=1.3,R=L/A,th0=-0.3;
+ const sEnd=1-0.22*sm(48,58,d);
+ const raw=s=>{const th=th0+A*s;return V(0,R*Math.cos(th),-R*Math.sin(th));};
+ const cen=V(0,0,0);for(let i=0;i<=20;i++)cen.add(raw(i/20*sEnd));cen.multiplyScalar(1/21);
+ const P=s=>raw(s).sub(cen);
+ const T=s=>raw(Math.min(1,s+0.01)).sub(raw(Math.max(0,s-0.01))).normalize();
+ const OUT=s=>{const th=th0+A*s;return V(0,Math.cos(th),-Math.sin(th));}; // outward = back side
+ const IN=s=>OUT(s).negate();
+ const hr=lerpT([[19,0.1],[24,0.15],[30,0.2],[40,0.24],[60,0.27]],d),br=lerpT([[19,0.09],[30,0.12],[50,0.15],[60,0.17]],d);
+ const rad=s=>{if(s<0.12)return hr*0.8;if(s<0.2)return hr*0.8-(hr*0.8-br*0.95)*(s-0.12)/0.08;if(s<0.72)return br;const u=(s-0.72)/(sEnd-0.72);return Math.max(0.012,br*(1-u*0.92));};
+ const pts=[];for(let i=0;i<=28;i++)pts.push(P(i/28*sEnd));
+ g.add(ptube(pts,s=>rad(s*sEnd),mat,100,16));
+ const hc=P(0.04).add(IN(0.04).multiplyScalar(hr*0.25)).add(T(0.04).multiplyScalar(-hr*0.15));
+ g.add(sph(mat,hc,[hr*0.95,hr*1.05,hr*1.1],32));
+ if(d>=28)g.add(sph(mat,hc.clone().add(IN(0.0).multiplyScalar(hr*0.35)).add(V(0,hr*0.25,0)),[hr*0.8,hr*0.75,hr*0.8],28));
+ // somites
+ const nS=Math.floor(lerpT([[19,2],[22,8],[24,16],[28,26],[32,32],[40,38]],d));
+ if(d<46){const fa=1-sm(40,46,d);for(let i=0;i<nS;i++){const s=0.18+i*(0.55/38);if(s>sEnd-0.05)break;const p=P(s).add(OUT(s).multiplyScalar(rad(s)*0.9));[1,-1].forEach(sx=>{const b=sph(mat,p.clone().add(V(sx*rad(s)*0.42,0,0)),[0.022*fa+0.001,0.02,0.022],10);g.add(b);});}}
+ // open neural groove / neuropores
+ const groove=(a,b)=>{const q=[];for(let i=0;i<=8;i++){const s=a+(b-a)*i/8;q.push(P(s).add(OUT(s).multiplyScalar(rad(s)*1.0)));}g.add(ptube(q,0.012,dk,24,6));};
+ if(d<22)groove(0.06,0.8);else{if(d<24)groove(0.04,0.16);if(d<27)groove(0.66,0.8);}
+ // heart & liver bulges
+ const hp=P(0.24).add(IN(0.24).multiplyScalar(br*1.05));
+ const heart=sph(pmat(0xc0203a,{r:0.3}),hp,[0.075,0.075,0.075],20);g.add(heart);g.userData.heart=heart;
+ if(d>=24)g.add(sph(mat,hp.clone().add(IN(0.24).multiplyScalar(-0.02)),[0.1,0.1,0.1],20));
+ if(d>=28&&d<52)g.add(sph(mat,P(0.42).add(IN(0.42).multiplyScalar(br*0.9)),[0.11,0.1,0.1],20));
+ // pharyngeal arches
+ if(d>=24&&d<38){const na=d<26?2:d<28?3:4;for(let i=0;i<na;i++){const s=0.1+i*0.03,p=P(s).add(IN(s).multiplyScalar(rad(s)*0.85));[1,-1].forEach(sx=>{const a=sph(mat,p.clone().add(V(sx*rad(s)*0.5,0,0)),[0.03,0.02,0.05],12);g.add(a);});}}
+ // eyes
+ const eyeP=sx=>hc.clone().add(V(sx*hr*0.62,hr*0.05,0)).add(IN(0.04).multiplyScalar(hr*0.45));
+ [1,-1].forEach(sx=>{
+  if(d>=28&&d<31)g.add(sph(lt,eyeP(sx),[0.025,0.025,0.012],12));
+  if(d>=31){const er=lerpT([[31,0.03],[40,0.045],[60,0.05]],d);g.add(sph(d>=37?dk:pmat(0xb57b80,{r:0.4}),eyeP(sx),[er,er,er*0.6],14));
+   if(d>=54){const lid=sph(mat,eyeP(sx).add(V(sx*0.006,0,0)),[er*1.15,er*1.15*sm(54,60,d)+0.002,er*0.75],14);g.add(lid);}}
+  // ear
+  const earP=hc.clone().add(V(sx*hr*0.92,-hr*0.35,0)).add(OUT(0.06).multiplyScalar(hr*0.15));
+  if(d>=24&&d<38)g.add(sph(dk,earP,[0.015,0.015,0.015],10));
+  if(d>=38&&d<54)for(let i=0;i<6;i++)g.add(sph(mat,earP.clone().add(V(sx*0.01,Math.cos(i)*0.025,Math.sin(i*1.7)*0.02)),[0.012,0.012,0.012],8));
+  if(d>=54)g.add(sph(mat,earP,[0.012,0.05,0.035],12));
+  if(d>=35)g.add(sph(dk,hc.clone().add(IN(0.0).multiplyScalar(hr*1.02)).add(V(sx*hr*0.18,-hr*0.25,0)),[0.012,0.012,0.008],8));
+ });
+ // limbs
+ const limb=(sx,root,dir,len,dd,isArm)=>{if(dd<0)return;
+  if(dd<6){const b=sph(mat,root.clone().add(dir.clone().multiplyScalar(0.02+0.03*dd/6)),[0.05,0.035+0.04*dd/6,0.05],14);b.lookAt(root.clone().add(dir));g.add(b);return;}
+  const bend=isArm?sm(23,28,dd):sm(23,28,dd)*0.6,elbow=root.clone().add(dir.clone().multiplyScalar(len*0.55));
+  const dir2=dir.clone().lerp(V(0,isArm?0.4:-0.2,1),bend).normalize(),end=elbow.clone().add(dir2.clone().multiplyScalar(len*0.45));
+  const lr=lerpT([[6,0.04],[20,0.05],[34,0.055]],dd);g.add(ptube([root,elbow,end],lr,mat,16,10));
+  const pr=lerpT([[6,0.05],[16,0.07],[34,0.08]],dd);const plate=sph(mat,end.clone().add(dir2.clone().multiplyScalar(pr*0.5)),[pr,pr*0.35,pr*0.85],16);plate.lookAt(end.clone().add(dir2));g.add(plate);
+  if(dd>=16&&dd<27)for(let k=0;k<5;k++){const a=(k-2)*0.3,fd=dir2.clone().applyAxisAngle(V(1,0,0),a*0.0).add(V(sx*Math.sin(a)*0.8,0,0)).normalize();g.add(sph(lt,end.clone().add(fd.multiplyScalar(pr*0.85)),[0.012,0.012,0.012],8));}
+  if(dd>=27)for(let k=0;k<5;k++){const a=(k-2)*0.32,fd=dir2.clone().add(V(sx*Math.sin(a),0,0)).normalize(),st=end.clone().add(dir2.clone().multiplyScalar(pr*0.6));g.add(ptube([st,st.clone().add(fd.clone().multiplyScalar(pr*1.2))],0.011,mat,4,6));}
+ };
+ [1,-1].forEach(sx=>{
+  const ra=P(0.3).add(V(sx*br*0.95,0,0)),rl=P(0.64).add(V(sx*br*0.9,0,0));
+  const da=IN(0.3).add(V(sx*0.35,-0.5,0)).normalize(),dl=IN(0.64).add(V(sx*0.3,-0.3,0)).normalize();
+  limb(sx,ra,da,lerpT([[26,0.06],[33,0.14],[42,0.2],[53,0.3],[60,0.34]],d),d-26,true);
+  limb(sx,rl,dl,lerpT([[28,0.05],[37,0.13],[44,0.18],[56,0.28],[60,0.31]],d),d-29,false);});
+ // yolk sac on a stalk
+ const bp=P(0.5).add(IN(0.5).multiplyScalar(br));
+ if(d<52){const yr=lerpT([[19,0.3],[26,0.22],[40,0.12],[52,0.05]],d),yp=bp.clone().add(IN(0.5).multiplyScalar(0.25+yr));
+  g.add(ptube([bp,bp.clone().lerp(yp,0.6)],0.018,pmat(0xe0c08a,{r:0.5}),8,8));g.add(sph(pmat(0xf0cf72,{r:0.5,op:0.85}),yp,[yr,yr,yr],20));}
+ g.userData.belly=bp;return g;}
+function buildFetus(w){const t=c01((w-10)/30),fat=c01((w-26)/14),g=new THREE.Group();
+ const col=new THREE.Color(0xe98d8e).lerp(new THREE.Color(0xf1bea5),c01((w-10)/16));
+ const mat=pmat(col.getHex(),{r:0.55,op:w<18?0.84+0.16*c01((w-10)/8):1});
+ const hr=0.3-0.09*t,hc=V(0,0.34+0.02*t,0.12-0.03*t);
+ g.add(sph(mat,hc,[hr*0.93,hr,hr*1.04],40));
+ const bwd=0.17+0.06*t+0.035*fat,bh=0.3+0.06*t,bd=0.16+0.05*t+0.03*fat;
+ const body=sph(mat,V(0,-0.06,0),[bwd,bh,bd],40);body.rotation.x=-0.3;g.add(body);
+ g.add(ptube([V(0,0.16,0.04),hc.clone().add(V(0,-hr*0.65,-0.03))],0.09+0.03*t,mat,6,16));
+ const eyeM=pmat(0x2b1d24,{r:0.3});
+ [1,-1].forEach(sx=>{g.add(sph(eyeM,hc.clone().add(V(sx*hr*0.36,hr*0.08,hr*0.95)),[hr*0.11,w<28?hr*0.03:hr*0.09,hr*0.06],14));
+  g.add(sph(mat,hc.clone().add(V(sx*hr*0.92,-hr*0.02,-hr*0.05)),[hr*0.07,hr*0.17,hr*0.11],14));});
+ g.add(sph(mat,hc.clone().add(V(0,-hr*0.14,hr*1.02)),[hr*0.1,hr*0.09,hr*0.08],14));
+ const L=0.7+0.3*c01((w-10)/10),lr=0.042+0.018*t+0.018*fat;g.userData.legs=[];
+ [1,-1].forEach(sx=>{const Sh=V(sx*bwd*0.85,0.16,0.04),E=V(sx*(bwd*0.95+0.02),-0.04,0.22),H=V(sx*0.07,0.2,0.33);
+  const E2=Sh.clone().lerp(E,L),H2=E2.clone().add(H.clone().sub(E).multiplyScalar(L));
+  g.add(ptube([Sh,Sh.clone().lerp(E2,0.5),E2],lr,mat,10,12));g.add(ptube([E2,E2.clone().lerp(H2,0.5),H2],lr*0.88,mat,10,12));
+  g.add(sph(mat,H2,[lr*1.25,lr*1.35,lr*0.85],16));
+  const lg=new THREE.Group();lg.position.set(sx*0.1,-0.26,0.04);
+  const K=V(sx*0.06,0.2,0.3).multiplyScalar(L),A=K.clone().add(V(-sx*0.04,-0.3,0.02).multiplyScalar(L)),F=A.clone().add(V(-sx*0.01,-0.02,0.09*L));
+  lg.add(ptube([V(0,0,0),K.clone().multiplyScalar(0.5).add(V(0,0,0.02)),K],lr*1.35,mat,10,12));lg.add(ptube([K,K.clone().lerp(A,0.5),A],lr*1.05,mat,10,12));
+  lg.add(sph(mat,A.clone().lerp(F,0.6),[lr,lr*0.8,lr*1.9],16));
+  g.add(lg);g.userData.legs.push(lg);});
+ const heart=sph(pmat(0xc0203a,{r:0.3}),V(0.02,0.04,0.1),[0.05,0.05,0.05],16);g.add(heart);g.userData.heart=heart;
+ g.userData.belly=V(0,-0.1,bd*0.95);return g;}
+function pgCells(d){
+ const n=d<1.2?1:d<1.9?2:d<2.5?4:d<3.2?8:16;PG.cellMat.userData.baseOp=n===1?0.55:1;PG.cellMat.depthWrite=n!==1;constcomp=d>=2.8?1-0.12*c01((d-2.8)/0.6):1;
+ const rc=(n===1?0.42:0.36/Math.cbrt(n)*1.02)*(n>=8?1.06:1),spread=n===1?0:Math.max(0,0.42-rc*0.92)*comp;
+ PG.cells.forEach((c,i)=>{const on=i<n;const tp=on?CELLP[n][i].clone().multiplyScalar(spread):V(0,0,0);c.position.lerp(tp,0.12);const ts=on?rc:0.001;c.scale.lerp(V(ts,ts,ts),0.12);c.visible=c.scale.x>0.01;});
+ const pk=c01((d-0.15)/0.9);PG.pron.forEach((m,i)=>{m.visible=n===1&&d>0.12;m.position.set((i?1:-1)*0.16*(1-pk),0.04,0.2);});
+ const tt=PG.t;PG.sperm.forEach((g,i)=>{const dd=g.userData.dir,k=c01(d/0.12),dist=i===0?1.7-1.25*k:1.7-0.95*k-0.08*Math.sin(tt*2+i);
+  g.position.copy(dd).multiplyScalar(Math.max(0.47,dist));g.lookAt(0,0,0);g.userData.tail.rotation.z=0.4*Math.sin(tt*14+i);g.visible=d<0.16;});
+}
+function pgUpdate(dt){
+ if(PG.playing&&!PG.drag){const r=PG.d<7?0.9:PG.d<19?2:PG.d<60?3:9;PG.d=Math.min(266,PG.d+r*PG.speed*dt);if(PG.d>=266){PG.playing=false;renderPreg();}}
+ const d=PG.d,w=d/7+2;PG.t+=dt;const T=PG.t;
+ fadeObj(PG.early,1-sm(4.2,4.6,d));if(PG.early.visible)pgCells(d);
+ fadeObj(PG.blast,sm(4.1,4.5,d)*(1-sm(11.5,13,d)));
+ if(PG.blast.visible){PG.blast.position.y=-0.48*sm(6,11,d);PG.blast.rotation.y+=dt*0.25;fadeObj(PG.bzona,1-sm(5.2,5.9,d));PG.bzona.scale.setScalar(1+0.06*sm(4.5,5.3,d));}
+ fadeObj(PG.wall,sm(5.4,6.2,d)*(1-sm(12,13.5,d)));
+ const wA=sm(11.5,13,d);fadeObj(PG.womb,wA);
+ const Rs=lerpT([[12,0.6],[30,0.7],[60,0.85],[84,0.95],[140,0.92],[210,0.8],[266,0.74]],d);
+ if(PG.womb.visible){PG.sac.scale.setScalar(Rs);PG.uterus.scale.setScalar(Rs*1.2);
+  const n=V(-0.3,0.55,-0.78).normalize(),ps=0.3+0.7*sm(12,84,d);PG.plac.position.copy(n).multiplyScalar(Rs*0.97);PG.plac.scale.set(0.38*Rs*ps,0.09*Rs*ps,0.38*Rs*ps);PG.plac.quaternion.setFromUnitVectors(V(0,1,0),n);}
+ // disc (days 12–21)
+ const dA=d<12?0:sm(12,13,d)*(1-sm(20,21.5,d));
+ if(dA>0){if(!PG.disc||Math.abs(d-PG.dw)>0.4){disposeGroup(PG.disc);PG.disc=buildDisc(d);PG.dw=d;PG.womb.add(PG.disc);}
+  PG.disc.scale.setScalar(lerpT([[12,0.9],[21,1.0]],d));PG.disc.rotation.set(0.35,-0.6+0.1*Math.sin(T*0.4),0);fadeObj(PG.disc,dA);}
+ else if(PG.disc){disposeGroup(PG.disc);PG.disc=null;PG.dw=-99;}
+ // embryo (days 19–62)
+ const eA=d<19.5?0:sm(19.5,21,d)*(1-sm(58,63,d));
+ if(eA>0){if(!PG.embryo||Math.abs(d-PG.ew)>0.5){disposeGroup(PG.embryo);PG.embryo=buildEmbryo(d);PG.ew=d;PG.womb.add(PG.embryo);}
+  PG.embryo.scale.setScalar(lerpT([[19,0.55],[30,0.68],[45,0.78],[62,0.82]],d));PG.embryo.rotation.y=-0.7+0.15*Math.sin(T*0.4);PG.embryo.position.y=0.02*Math.sin(T*0.7);fadeObj(PG.embryo,eA);
+  const hb=PG.embryo.userData.heart;if(hb){const k=d>=22?1+0.35*Math.pow(Math.max(0,Math.sin(T*Math.PI*2*2.2)),4):1;hb.scale.setScalar(0.075*k);}}
+ else if(PG.embryo){disposeGroup(PG.embryo);PG.embryo=null;PG.ew=-99;}
+ // fetus
+ const fA=d<58?0:sm(58,63,d);
+ if(fA>0){if(!PG.fetus||Math.abs(w-PG.fw)>0.4){disposeGroup(PG.fetus);PG.fetus=buildFetus(w);PG.fw=w;PG.womb.add(PG.fetus);}
+  const f=PG.fetus;f.scale.setScalar(lerpT([[58,0.75],[84,0.88],[140,0.98],[266,1.08]],d));
+  f.rotation.set(0,-0.55+0.18*Math.sin(T*0.35),Math.PI*sm(196,238,d));f.position.y=0.015*Math.sin(T*0.8);fadeObj(f,fA);
+  f.userData.legs.forEach((lg,i)=>{lg.rotation.x=d>=98?-0.45*Math.pow(Math.max(0,Math.sin(T*1.25+i*1.7)),10):0;});
+  const hb=f.userData.heart;if(hb){const k=1+0.3*Math.pow(Math.max(0,Math.sin(T*Math.PI*2*2.3)),4);hb.scale.setScalar(0.05*k);hb.visible=d<112;}}
+ else if(PG.fetus){disposeGroup(PG.fetus);PG.fetus=null;PG.fw=-99;}
+ // connecting stalk / umbilical cord
+ const host=PG.fetus&&fA>0.5?PG.fetus:PG.embryo&&eA>0.3?PG.embryo:PG.disc;
+ if(PG.cord){PG.cord.geometry.dispose();PG.womb.remove(PG.cord);PG.cord=null;}
+ if(host&&PG.womb.visible){host.updateMatrixWorld(true);const B=host.userData.belly.clone().applyMatrix4(host.matrixWorld),P0=PG.plac.position.clone();
+  const dir=B.clone().sub(P0);dir.normalize();const a1=V(0,0,1).cross(dir).normalize(),a2=dir.clone().cross(a1).normalize();const pts=[];
+  for(let i=0;i<=12;i++){const u=i/12,amp=Math.sin(Math.PI*u)*0.06*Rs*sm(25,60,d),ang=u*Math.PI*5+T*0.6;pts.push(P0.clone().lerp(B,u).add(a1.clone().multiplyScalar(Math.cos(ang)*amp)).add(a2.clone().multiplyScalar(Math.sin(ang)*amp)));}
+  PG.cord=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),70,0.018*Rs*(0.6+0.4*sm(26,140,d)),8,false),PG.cordMat);PG.cordMat.opacity=wA;PG.womb.add(PG.cord);}
+ const i=pgStageIdx(d);if(i!==PG.stageI)renderPreg();else{const lb=$('pgWk');if(lb)lb.textContent=dayLabel(d);const rg=$('pgRange');if(rg&&!PG.drag)rg.value=d;}
+}
+function pgStageIdx(d){let i=0;PGS.forEach((s,k)=>{if(d>=s[0]-1e-6)i=k;});return i;}
+function dayLabel(d){const ga=Math.floor(d/7+2);return d<60?`${Math.floor(d)+1} дэх хоног · жирэмсний ${ga} долоо хоног`:`жирэмсний ${ga} долоо хоног · ${Math.floor(d)} хоног`;}
+const pgc=$('pregcard');
+function renderPreg(){const i=pgStageIdx(PG.d),s=PGS[i];PG.stageI=i;pgc.classList.toggle('min',PG.min);
+ pgc.innerHTML=`<div class="tc-top"><span>Хүүхэд хэрхэн өсдөг · ${i+1}/${PGS.length}</span><span class="sp"></span><span class="pg-wk" id="pgWk">${dayLabel(PG.d)}</span><button class="tc-tog" data-g="min" aria-expanded="${!PG.min}">${PG.min?'Тайлбар харуулах':'Тайлбар нуух'}<svg viewBox="0 0 24 24"><path d="${PG.min?'M6 15l6-6 6 6':'M6 9l6 6 6-6'}"/></svg></button></div>
+ <h3>${s[1]}</h3><div class="pg-meta"><span>${s[2]}</span></div><p>${s[3]}</p>
+ <input class="brr" type="range" id="pgRange" min="0" max="266" step="0.1" value="${PG.d}" aria-label="Хоног">
+ <div class="tc-bar">${PGS.map((x,k)=>`<button data-j="${k}" title="${x[1]}" aria-label="${x[1]}" class="${k===i?'cur':''}"><span style="width:${k<=i?100:0}%"></span></button>`).join('')}</div>
+ <div class="tc-ctl"><button class="btn" data-g="prev" ${i===0?'disabled':''}>Өмнөх</button><button class="btn pri" data-g="play">${PG.d>=266?'Дахин эхлэх':PG.playing?'Зогсоох':'Тоглуулах'}</button><button class="btn" data-g="next" ${i===PGS.length-1?'disabled':''}>Дараах</button><button class="btn" data-g="speed" title="Хурд">${PG.speed}×</button><button class="btn x" data-g="close">Хүний бие рүү буцах</button></div>`;
+ const rg=$('pgRange');rg.addEventListener('pointerdown',()=>{PG.drag=true;});rg.addEventListener('pointerup',()=>{PG.drag=false;});rg.addEventListener('change',()=>{PG.drag=false;});
+ rg.oninput=()=>{PG.d=+rg.value;const lb=$('pgWk');if(lb)lb.textContent=dayLabel(PG.d);};
+ pgc.querySelectorAll('[data-j]').forEach(b=>b.onclick=()=>{PG.d=PGS[+b.dataset.j][0]+0.001;renderPreg();});
+ pgc.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{const k=b.dataset.g;
+  if(k==='play'){if(PG.d>=266){PG.d=0;PG.playing=true;}else PG.playing=!PG.playing;renderPreg();}
+  if(k==='prev'){PG.d=PGS[Math.max(0,i-1)][0]+0.001;PG.playing=false;renderPreg();}
+  if(k==='next'){PG.d=PGS[Math.min(PGS.length-1,i+1)][0]+0.001;PG.playing=false;renderPreg();}
+  if(k==='speed'){PG.speed=PG.speed===1?2:PG.speed===2?0.5:1;renderPreg();}
+  if(k==='close')exitScenes();if(k==='min'){PG.min=!PG.min;renderPreg();}});}
+/* ================= EYE EXPLORER ================= */
+const EYEP={
+ cornea:['Эвэрлэг','Cornea','Нүдний урд талын тунгалаг «цонх». Гэрлийг хамгийн их хугалж төвлөрүүлдэг. Судасгүй тул хүчилтөрөгчөө агаар, нулимснаас авна. Ард нь тунгалаг шингэнтэй урд камер байна.'],
+ iris:['Солонгон бүрхүүл','Iris','Нүдний өнгийг өгдөг булчинлаг цагираг. Гэрэл ихэд хүүхэн харааг нарийсгаж, харанхуйд томруулна — камерын диафрагм шиг.'],
+ pupil:['Хүүхэн хараа','Pupilla','Солонгон бүрхүүлийн голын нүх. Гэрэл үүгээр нүд рүү орно. 2–8 мм хооронд томорч жижгэрнэ.'],
+ lens:['Болор','Lens','Уян тунгалаг линз. Ойрын юм харахад бөөрөнхийлж, холыг харахад хавтгайрна. Нас ахихад хатуурч, бүрэлзвэл катаракт болно.'],
+ ciliary:['Цилиар бие ба шөрмөс','Corpus ciliare, zonula','Болорыг нарийн утсаар (зонула) дүүжилсэн цагираг булчин. Агшиж сулрахдаа болорын хэлбэрийг өөрчилнө. Урд камерын шингэнийг ялгаруулна.'],
+ vitreous:['Шилэнцэр бие','Corpus vitreum','Нүдний алимын 80%-ийг дүүргэсэн тунгалаг гель. Нүдний хэлбэрийг барьж, гэрлийг торлог руу нэвтрүүлнэ.'],
+ retina:['Торлог бүрхүүл','Retina','Гэрэл мэдрэх давхарга: ~120 сая саваа эс (бүдэг гэрэл, хар цагаан) ба ~6 сая боргоцой эс (өнгө). Улбар шар өнгө нь доорх судаслаг бүрхүүлийн цуснаас. Улаан шугамууд — торлогийн артери (цайвар) ба вен (бараан).'],
+ disc:['Харааны мэдрэлийн толгой','Discus nervi optici','Цайвар дугуй. Торлогийн бүх мэдрэлийн утас, судас энд нийлж нүднээс гарна. Гэрэл мэдрэх эсгүй тул «сохор цэг» гэдэг.'],
+ macula:['Шар толбо ба төв хонхор','Macula lutea, fovea','Хамгийн тод, нарийн хардаг газар. Голд нь зөвхөн боргоцой эсээс бүрдсэн төв хонхор бий — ном унших, царай танихад энийг ашиглана.'],
+ choroid:['Судаслаг бүрхүүл','Choroidea','Цусны судсаар баялаг бор давхарга. Торлогийг тэжээж, илүүдэл гэрлийг шингээнэ.'],
+ sclera:['Цагаан бүрхүүл','Sclera','Нүдний «цагаан» хэсэг — нягт, бат бөх гадна хана. Нүдийг хамгаалж, булчингууд энд бэхлэгдэнэ.'],
+ optic:['Харааны мэдрэл','Nervus opticus','~1.2 сая мэдрэлийн утас торлогийн дохиог тархи руу дамжуулна.'],
+ musSR:['Дээд шулуун булчин','M. rectus superior','Нүдийг дээш харуулна.'],musIR:['Доод шулуун булчин','M. rectus inferior','Нүдийг доош харуулна.'],
+ musMR:['Дотор шулуун булчин','M. rectus medialis','Нүдийг хамар руу эргүүлнэ.'],musLR:['Гадна шулуун булчин','M. rectus lateralis','Нүдийг чих рүү эргүүлнэ.'],
+ musSO:['Дээд ташуу булчин','M. obliquus superior','Дэгээ мэт мөгөөрсөөр (трохлеа) дамжиж, нүдийг доош, дотогш эргүүлнэ.'],musIO:['Доод ташуу булчин','M. obliquus inferior','Нүдийг дээш, гадагш эргүүлнэ.']
+};
+const EYE_CHIPS=['cornea','iris','pupil','lens','ciliary','vitreous','retina','macula','disc','choroid','sclera','optic','musSR','musLR'];
+const IRIS_COL={brown:['Бор',['#3a1d0c','#6b3c1a','#a06a34']],hazel:['Шар хүрэн',['#3d2a12','#7a5a26','#9c8a3c']],green:['Ногоон',['#23331c','#4f6b34','#8fa565']],blue:['Цэнхэр',['#1d2c40','#4a6b8f','#a9c3dc']]};
+const EY={active:false,scene:new THREE.Scene(),built:false,ex:0,exT:0,cut:false,sel:null,pick:[],groups:{},iris:'brown',min:false,clip:new THREE.Plane(new THREE.Vector3(-1,0,0),0),mats:[]};
+function rngSeed(s){return()=>{s=(s*16807)%2147483647;return(s-1)/2147483646;};}
+function fundusTex(){const W=1536,c=document.createElement('canvas');c.width=c.height=W;const g=c.getContext('2d'),R=rngSeed(7);
+ const cx=W/2,cy=W/2,gr=g.createRadialGradient(cx,cy,0,cx,cy,W/2);gr.addColorStop(0,'#a63d1c');gr.addColorStop(0.08,'#c4552a');gr.addColorStop(0.3,'#d2652f');gr.addColorStop(0.75,'#c0552a');gr.addColorStop(1,'#7a301c');g.fillStyle=gr;g.fillRect(0,0,W,W);
+ for(let i=0;i<2600;i++){const r=Math.sqrt(R())*W*0.5,a=R()*6.283,x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r,s=2+R()*10*(r/(W*0.5));g.fillStyle=R()<0.5?`rgba(120,40,20,${0.05+0.08*r/(W*0.5)})`:`rgba(235,140,80,0.05)`;g.beginPath();g.ellipse(x,y,s*1.8,s,a,0,6.283);g.fill();}
+ const mg=g.createRadialGradient(cx,cy,0,cx,cy,W*0.05);mg.addColorStop(0,'rgba(60,15,8,0.65)');mg.addColorStop(0.5,'rgba(90,25,10,0.35)');mg.addColorStop(1,'rgba(90,25,10,0)');g.fillStyle=mg;g.beginPath();g.arc(cx,cy,W*0.05,0,6.283);g.fill();
+ g.fillStyle='rgba(255,240,220,0.85)';g.beginPath();g.arc(cx,cy,W*0.0025,0,6.283);g.fill();
+  const dx=cx+W*0.075,dy=cy-W*0.004,dr=W*0.019;
+ const vessel=(pts,w0,w1,col)=>{g.strokeStyle=col;g.lineCap='round';for(let i=1;i<pts.length;i++){g.lineWidth=w0+(w1-w0)*i/pts.length;g.beginPath();g.moveTo(pts[i-1][0],pts[i-1][1]);g.lineTo(pts[i][0],pts[i][1]);g.stroke();}};
+ const branchy=(x,y,ang,len,w,col,depth)=>{const pts=[[x,y]];let a=ang;const n=Math.max(4,Math.floor(len/12));for(let i=0;i<n;i++){a+=(R()-0.5)*0.25;x+=Math.cos(a)*len/n;y+=Math.sin(a)*len/n;if(Math.hypot(x-cx,y-cy)<W*0.028)break;pts.push([x,y]);
+   if(depth>0&&i>1&&R()<0.22)branchy(x,y,a+(R()<0.5?-1:1)*(0.5+R()*0.6),len*(0.3+R()*0.3),w*0.6,col,depth-1);}vessel(pts,w,Math.max(0.8,w*0.35),col);};
+ const arcade=(sign,col,w,off)=>{const pts=[[dx,dy]];let x=dx,y=dy,a=-sign*1.25+Math.PI*0.0;a=sign>0?-1.9:1.9;
+  for(let k=1;k<=46;k++){const t=k/46;const tx=cx-W*0.02,ty=cy;const toM=Math.atan2(ty-y,tx-x);const dist=Math.hypot(tx-x,ty-y);
+   const want=toM+(sign>0?1:-1)*Math.PI*0.5*(dist<W*0.12?1:0.6);a+=((want-a+Math.PI*3)%(Math.PI*2)-Math.PI)*0.12+(R()-0.5)*0.08;
+   const st=W*0.0075*(1+0.8*t);x+=Math.cos(a)*st;y+=Math.sin(a)*st+off*0.02;pts.push([x,y]);
+   if(k%6===3)branchy(x,y,Math.atan2(cy-y,cx-x)+(R()-0.5)*0.5,W*0.045,w*0.42,col,1);if(k%7===5)branchy(x,y,Math.atan2(y-cy,x-cx)+(R()-0.5)*0.4,W*0.1,w*0.5,col,2);}
+  vessel(pts,w,w*0.35,col);const e=pts[pts.length-1];branchy(e[0],e[1],Math.atan2(e[1]-cy,e[0]-cx),W*0.14,w*0.4,col,2);};
+ for(const [col,w,off] of [['#7d1a1c',W*0.0065,W*0.004],['#d4423a',W*0.0045,-W*0.004]]){arcade(1,col,w,off);arcade(-1,col,w,off);
+  branchy(dx,dy,-0.6+(R()-0.5)*0.2,W*0.3,w*0.8,col,2);branchy(dx,dy,0.6+(R()-0.5)*0.2,W*0.3,w*0.8,col,2);branchy(dx,dy,0.05,W*0.25,w*0.6,col,2);}
+ const dg=g.createRadialGradient(dx,dy,0,dx,dy,dr);dg.addColorStop(0,'#fbe6c6');dg.addColorStop(0.4,'#f3c99c');dg.addColorStop(0.8,'#e49a74');dg.addColorStop(1,'rgba(190,90,55,0.6)');g.fillStyle=dg;g.beginPath();g.ellipse(dx,dy,dr*0.92,dr,0,0,6.283);g.fill();
+ for(const [col,w] of [['#7d1a1c',W*0.004],['#d4423a',W*0.003]]){[[-1.9,-1],[1.9,1],[-0.4,-1],[0.4,1]].forEach(([a,s])=>{vessel([[dx,dy],[dx+Math.cos(a)*dr*0.8,dy+Math.sin(a)*dr*0.8+s*2]],w,w,col);});}
+ const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=4;return t;}
+function irisTex(key){const W=512,c=document.createElement('canvas');c.width=c.height=W;const g=c.getContext('2d'),R=rngSeed(11),[d0,d1,d2]=IRIS_COL[key][1];const cx=W/2;
+ g.fillStyle='#000';g.fillRect(0,0,W,W);const rp=W/2*0.34;
+ const gr=g.createRadialGradient(cx,cx,rp,cx,cx,W/2);gr.addColorStop(0,d0);gr.addColorStop(0.25,d2);gr.addColorStop(0.45,d1);gr.addColorStop(0.85,d1);gr.addColorStop(1,d0);g.fillStyle=gr;g.beginPath();g.arc(cx,cx,W/2,0,6.283);g.fill();
+ for(let i=0;i<900;i++){const a=R()*6.283,r0=rp+R()*10,r1=W/2*(0.6+R()*0.4),l=0.6+R()*0.4;g.strokeStyle=R()<0.5?`rgba(255,255,255,${0.04+R()*0.08})`:`rgba(0,0,0,${0.05+R()*0.1})`;g.lineWidth=0.6+R()*1.6;g.beginPath();g.moveTo(cx+Math.cos(a)*r0,cx+Math.sin(a)*r0);g.quadraticCurveTo(cx+Math.cos(a+0.05)*(r0+r1)/2,cx+Math.sin(a+0.05)*(r0+r1)/2,cx+Math.cos(a)*r1*l+Math.cos(a)*r1*(1-l),cx+Math.sin(a)*r1);g.stroke();}
+ g.strokeStyle='rgba(255,230,190,0.18)';g.lineWidth=6;g.beginPath();for(let k=0;k<=96;k++){const a=k/96*6.283,r=W/2*0.5+5*Math.sin(a*9);k?g.lineTo(cx+Math.cos(a)*r,cx+Math.sin(a)*r):g.moveTo(cx+Math.cos(a)*r,cx+Math.sin(a)*r);}g.stroke();
+ for(let i=0;i<40;i++){const a=R()*6.283,r=W/2*(0.55+R()*0.35);g.fillStyle='rgba(0,0,0,0.25)';g.beginPath();g.ellipse(cx+Math.cos(a)*r,cx+Math.sin(a)*r,6+R()*8,3+R()*3,a,0,6.283);g.fill();}
+ const lg=g.createRadialGradient(cx,cx,W/2*0.88,cx,cx,W/2);lg.addColorStop(0,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,0.75)');g.fillStyle=lg;g.beginPath();g.arc(cx,cx,W/2,0,6.283);g.fill();
+ const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t;}
+function scleraTex(){const W=1024,c=document.createElement('canvas');c.width=W;c.height=W/2;const g=c.getContext('2d'),R=rngSeed(5);
+ g.fillStyle='#efe8de';g.fillRect(0,0,W,W/2);
+ for(let i=0;i<70;i++){let x=R()*W,y=W/4+(R()-0.5)*W*0.35,a=R()*6.283;g.strokeStyle=`rgba(180,50,50,${0.18+R()*0.25})`;g.lineWidth=0.6+R()*1.4;g.beginPath();g.moveTo(x,y);for(let k=0;k<14;k++){a+=(R()-0.5)*0.9;x+=Math.cos(a)*8;y+=Math.sin(a)*8;g.lineTo(x,y);}g.stroke();}
+ const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t;}
+function emat(o){const m=new THREE.MeshStandardMaterial(Object.assign({roughness:0.5,metalness:0,side:THREE.DoubleSide},o));EY.mats.push(m);return m;}
+function capGeom(r,thLen,toBack,seg){const g=new THREE.SphereGeometry(r,seg||128,Math.round((seg||128)*0.5),0,Math.PI*2,0,thLen);g.rotateX(toBack?-Math.PI/2:Math.PI/2);return g;}
+function eyAdd(key,obj,grp){obj.traverse(o=>{if(o.isMesh){o.userData.ek=key;EY.pick.push(o);}});(EY.groups[grp]=EY.groups[grp]||new THREE.Group()).add(obj);}
+function eyInit(){if(EY.built)return;EY.built=true;const S=EY.scene;
+ S.add(new THREE.HemisphereLight(0xfff6ee,0x252a30,0.95));const k1=new THREE.DirectionalLight(0xffffff,1.25);k1.position.set(2,2.5,3);S.add(k1);
+ const k2=new THREE.DirectionalLight(0xbcd4ff,0.55);k2.position.set(-3,1,-2);S.add(k2);const k3=new THREE.DirectionalLight(0xffe2cc,0.45);k3.position.set(-1,-1.5,3);S.add(k3);
+ const inLight=new THREE.PointLight(0xfff2e0,0.7,3.5);inLight.position.set(0,0,0.4);S.add(inLight);EY.inLight=inLight;
+ // retina with fundus
+ const rg=capGeom(0.955,1.95,true);{const p=rg.attributes.position,uv=rg.attributes.uv,v=new THREE.Vector3();for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).normalize();const th=Math.acos(Math.max(-1,Math.min(1,-v.z))),ph=Math.atan2(v.y,v.x),k=th/1.95*0.5;uv.setXY(i,0.5+k*Math.cos(ph),0.5+k*Math.sin(ph));}}
+ eyAdd('retina',new THREE.Mesh(rg,emat({map:fundusTex(),roughness:0.55})),'retina');
+ const disc=new THREE.Mesh(new THREE.CircleGeometry(0.06,24),emat({transparent:true,opacity:0,depthWrite:false}));const dv=V(Math.sin(0.075/0.5*1.95),0,-Math.cos(0.075/0.5*1.95)).multiplyScalar(0.94);disc.position.copy(dv);disc.lookAt(0,0,0);eyAdd('disc',disc,'retina');
+ const mac=new THREE.Mesh(new THREE.CircleGeometry(0.08,24),emat({transparent:true,opacity:0,depthWrite:false}));mac.position.set(0,0,-0.94);mac.lookAt(0,0,0);eyAdd('macula',mac,'retina');
+ EY.discPos=dv;
+ eyAdd('choroid',new THREE.Mesh(capGeom(0.975,2.25,true,96),emat({color:0x5c2316,roughness:0.6})),'choroid');
+ eyAdd('sclera',new THREE.Mesh(capGeom(1.0,Math.PI-0.5,true,128),emat({map:scleraTex(),roughness:0.45})),'sclera');
+ // vitreous
+ const vg=new THREE.SphereGeometry(0.93,64,40);{const p=vg.attributes.position;for(let i=0;i<p.count;i++){const z=p.getZ(i);if(z>0.55)p.setZ(i,0.55+(z-0.55)*0.3);}vg.computeVertexNormals();}
+ eyAdd('vitreous',new THREE.Mesh(vg,emat({color:0xd9ecff,transparent:true,opacity:0.13,roughness:0.1,depthWrite:false,side:THREE.FrontSide})),'vitreous');
+ // lens
+ const lens=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),emat({color:0xf3ecd2,transparent:true,opacity:0.42,roughness:0.08,depthWrite:false,side:THREE.FrontSide}));lens.scale.set(0.38,0.38,0.19);lens.position.z=0.62;eyAdd('lens',lens,'lens');
+ // ciliary + zonules
+ const cil=new THREE.Mesh(new THREE.TorusGeometry(0.47,0.06,16,96),emat({color:0x4a2a1e,roughness:0.6}));cil.position.z=0.63;eyAdd('ciliary',cil,'ciliary');
+ const zp=[];for(let i=0;i<72;i++){const a=i/72*6.283;zp.push(Math.cos(a)*0.41,Math.sin(a)*0.41,0.63+(i%2?0.03:-0.03),Math.cos(a)*0.375,Math.sin(a)*0.375,0.62);}
+ const zg=new THREE.BufferGeometry();zg.setAttribute('position',new THREE.Float32BufferAttribute(zp,3));const zl=new THREE.LineSegments(zg,new THREE.LineBasicMaterial({color:0xe8dccb}));EY.groups.ciliary.add(zl);
+ // iris + pupil
+ const ig=new THREE.RingGeometry(0.17,0.5,128,6);{const p=ig.attributes.position;for(let i=0;i<p.count;i++){const r=Math.hypot(p.getX(i),p.getY(i));p.setZ(i,-(r-0.17)*0.06);}ig.computeVertexNormals();}
+ EY.irisMat=emat({map:irisTex(EY.iris),roughness:0.6});const iris=new THREE.Mesh(ig,EY.irisMat);iris.position.z=0.79;eyAdd('iris',iris,'iris');
+ const pup=new THREE.Mesh(new THREE.CircleGeometry(0.17,48),emat({color:0x000000,roughness:0.9}));pup.position.z=0.785;eyAdd('pupil',pup,'iris');
+ // cornea
+ const cg=new THREE.SphereGeometry(0.62,64,32,0,Math.PI*2,0,0.94);cg.rotateX(Math.PI/2);
+ const cor=new THREE.Mesh(cg,emat({color:0xe6f6ff,transparent:true,opacity:0.12,roughness:0.03,metalness:0.1,depthWrite:false}));cor.position.z=0.5;cor.renderOrder=8;eyAdd('cornea',cor,'cornea');
+ // optic nerve
+ const on=V(0.26,0,-0.965).normalize();
+ eyAdd('optic',ptube([on.clone().multiplyScalar(0.95),on.clone().multiplyScalar(1.4),V(0.48,0.06,-2.0),V(0.55,0.1,-2.7)],0.16,emat({color:0xf1e0b0,roughness:0.6}),24,20),'sclera');
+ // extraocular muscles
+ const mm=emat({color:0xb5392f,roughness:0.5}),apex=V(0.35,0.02,-3.0);
+ const rect=(key,dir)=>{const ins=V(dir.x*0.86,dir.y*0.86,0.5).normalize().multiplyScalar(1.03),eq=V(dir.x*1.05,dir.y*1.05,0),bk=V(dir.x*0.75+0.12,dir.y*0.75,-1.5);
+  const t=ptube([ins,eq,bk,apex],s=>0.075+0.035*Math.sin(Math.PI*Math.min(1,s*1.3)),mm,40,12);t.children.forEach(c=>c.scale.set(1,1,1));const gg=new THREE.Group();gg.add(t);gg.userData.dir=V(dir.x,dir.y,0);eyAdd(key,gg,'mus_'+key);};
+ rect('musSR',V(0,1,0));rect('musIR',V(0,-1,0));rect('musMR',V(1,0,0));rect('musLR',V(-1,0,0));
+ {const g1=new THREE.Group();g1.add(ptube([apex,V(0.55,0.75,-1.2),V(0.75,0.95,0.55)],0.06,mm,30,10));g1.add(ptube([V(0.75,0.95,0.55),V(0.3,1.0,0.2),V(-0.25,0.92,-0.25)],0.05,mm,20,10));
+  g1.add(new THREE.Mesh(new THREE.TorusGeometry(0.07,0.025,8,20),emat({color:0xd8d0c0})).translateX(0.75).translateY(0.95).translateZ(0.55));g1.userData.dir=V(0.4,0.9,0);eyAdd('musSO',g1,'mus_musSO');}
+ {const g2=new THREE.Group();g2.add(ptube([V(0.75,-0.95,0.55),V(0.1,-1.08,0.05),V(-0.6,-0.65,-0.45)],0.06,mm,24,10));g2.userData.dir=V(0,-1,0);eyAdd('musIO',g2,'mus_musIO');}
+ EY.root=new THREE.Group();Object.values(EY.groups).forEach(g=>EY.root.add(g));S.add(EY.root);
+ EY.root.rotation.y=0.2;
+}
+const EXO={cornea:[0,0,1.6],iris:[0,0,1.12],lens:[0,0,0.72],ciliary:[0,0,0.42],vitreous:[0,0,0],retina:[0,0,-0.75],choroid:[0,0,-1.35],sclera:[0,0,-1.95]};
+function eyLayout(){const e=EY.ex;Object.entries(EY.groups).forEach(([k,g])=>{if(EXO[k]){g.position.set(EXO[k][0]*e,EXO[k][1]*e,EXO[k][2]*e);}else if(k.startsWith('mus_')){const d=g.children[0].userData.dir||V(0,0,0);g.position.set(d.x*0.9*e,d.y*0.9*e,-1.95*e);}});}
+function eySetCut(on){EY.cut=on;EY.mats.forEach(m=>{m.clippingPlanes=on?[EY.clip]:null;m.needsUpdate=true;});}
+function eySelect(k){EY.pick.forEach(m=>{if(m.material&&m.material.emissive)m.material.emissive.set(0x000000);});EY.sel=k;
+ if(k)EY.pick.filter(m=>m.userData.ek===k).forEach(m=>{if(m.material.opacity>0)m.material.emissive.set(0x5a3c0e);});renderEye();}
+function eyCenter(k){const b=new THREE.Box3();EY.pick.filter(m=>m.userData.ek===k).forEach(m=>b.expandByObject(m));return b.isEmpty()?null:b.getCenter(new THREE.Vector3());}
+function eyUpdate(dt){const t=EY.exT;EY.ex+=(t-EY.ex)*Math.min(1,dt*3.2);if(Math.abs(EY.ex-t)<0.001)EY.ex=t;eyLayout();
+ const rg=$('eyEx');if(rg&&!EY.drag)rg.value=EY.ex;}
+const eyc=$('eyecard');
+function renderEye(){const k=EY.sel,info=k?EYEP[k]:null;eyc.classList.toggle('min',EY.min);
+ eyc.innerHTML=`<div class="tc-top"><span>Нүдний бүтэц</span><span class="sp"></span><button class="tc-tog" data-y="min" aria-expanded="${!EY.min}">${EY.min?'Тайлбар харуулах':'Тайлбар нуух'}<svg viewBox="0 0 24 24"><path d="${EY.min?'M6 15l6-6 6 6':'M6 9l6 6 6-6'}"/></svg></button></div>
+ <h3>${info?info[0]:'Нүд'}</h3><div class="tc-la">${info?info[1]:'Bulbus oculi · ~24 мм'}</div>
+ <p>${info?info[2]:'«Задлах» дарж давхарга бүрийг салгаад, хэсэг дээр дарж нэрийг нь хараарай. «Хагаслах» нь нүдийг хоёр хувааж дотрыг нь харуулна. Торлог бүрхүүлийн улбар шар өнгө, судас, сохор цэг, шар толбо бодит нүдний ёроолын зураг шиг.'}</p>
+ <div class="chips eychips">${EYE_CHIPS.map(c=>`<button class="chip plain" data-p="${c}" aria-pressed="${k===c}">${EYEP[c][0]}</button>`).join('')}</div>
+ <label class="sl" style="display:block"><span class="tc-time">Задрах хэмжээ</span><input class="brr" type="range" id="eyEx" min="0" max="1" step="0.01" value="${EY.ex}" aria-label="Задрах хэмжээ"></label>
+ <div class="tc-ctl"><button class="btn pri" data-y="ex">${EY.exT>0.5?'Нийлүүлэх':'Задлах'}</button><button class="btn" data-y="cut" aria-pressed="${EY.cut}">${EY.cut?'Бүтэн болгох':'Хагаслах'}</button><button class="btn" data-y="col">Өнгө: ${IRIS_COL[EY.iris][0]}</button><button class="btn x" data-y="close">Хүний бие рүү буцах</button></div>`;
+ const rg=$('eyEx');rg.addEventListener('pointerdown',()=>{EY.drag=true;});rg.addEventListener('pointerup',()=>{EY.drag=false;});rg.addEventListener('change',()=>{EY.drag=false;});
+ rg.oninput=()=>{EY.ex=EY.exT=+rg.value;eyLayout();};
+ eyc.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{eySelect(b.dataset.p);const c=eyCenter(b.dataset.p);if(c){const dir=camera.position.clone().sub(controls.target).normalize();flyTo(c,c.clone().add(dir.multiplyScalar(2.6)));}});
+ eyc.querySelectorAll('[data-y]').forEach(b=>b.onclick=()=>{const a=b.dataset.y;
+  if(a==='ex'){EY.exT=EY.exT>0.5?0:1;if(EY.exT>0.5)flyTo(V(-0.4,-1.3,-0.7),V(-6.4,1.2,4.4));else flyTo(V(0.35,-0.75,0),V(1.95,0.15,4.4));renderEye();}
+  if(a==='cut'){eySetCut(!EY.cut);renderEye();}
+  if(a==='col'){const ks=Object.keys(IRIS_COL);EY.iris=ks[(ks.indexOf(EY.iris)+1)%ks.length];const old=EY.irisMat.map;EY.irisMat.map=irisTex(EY.iris);EY.irisMat.needsUpdate=true;if(old)old.dispose();renderEye();}
+  if(a==='close')exitScenes();if(a==='min'){EY.min=!EY.min;renderEye();}});}
+function eyePick(){const h=ray.intersectObjects(EY.pick,false).find(x=>x.object.visible);eySelect(h?h.object.userData.ek:null);EY.selPt=h?h.point.clone():null;}
+/* ---------- scene switching ---------- */
+function setTabs(){const pn=typeof PN!=='undefined'&&PN.active;$('tabPain').setAttribute('aria-pressed',pn);$('tabBody').setAttribute('aria-pressed',!PG.active&&!EY.active&&!pn);$('tabEye').setAttribute('aria-pressed',EY.active);$('tabPreg').setAttribute('aria-pressed',PG.active);}
+function leaveBody(){if(GD.active)stopGuide(true),state.iso=null;if(tour.active)stopTour();if(br.active)stopBrowse();select(null);if(state.full)setFull(false);if(!PG.active&&!EY.active)PG.saved={p:camera.position.clone(),t:controls.target.clone()};}
+function enterPreg(){if(PG.active)return;if(PN.active)exitPain();leaveBody();if(EY.active){EY.active=false;app.classList.remove('eye');}pgInit();PG.active=true;app.classList.add('preg');anim=null;
+ camera.position.set(1.45,0.45,3.5);controls.target.set(0,-0.32,0);if(PG.d>=266)PG.d=0;PG.playing=true;renderPreg();setTabs();setTimeout(resize,60);}
+function enterEye(){if(EY.active)return;if(PN.active)exitPain();leaveBody();if(PG.active){PG.active=false;app.classList.remove('preg');}eyInit();EY.active=true;app.classList.add('eye');anim=null;renderer.localClippingEnabled=true;
+ controls.target.set(0.35,-0.75,0);camera.position.set(1.95,0.15,4.4);renderEye();setTabs();setTimeout(resize,60);}
+function exitScenes(){if(PN.active){exitPain();return;}if(!PG.active&&!EY.active)return;PG.active=false;EY.active=false;app.classList.remove('preg');app.classList.remove('eye');if(PG.saved){camera.position.copy(PG.saved.p);controls.target.copy(PG.saved.t);}setTabs();setTimeout(resize,60);}
+/* ---------- explode view (main body) ---------- */
+const EXP={on:false,v:0,dirs:new Map()};
+function expCompute(){EXP.dirs.forEach((d,m)=>{if(!EXP.on)return;});const vis=meshes.filter(m=>isVisible(m)&&m.userData.layer!=='skin');const nd=new Map();if(vis.length){const b=new THREE.Box3();vis.forEach(m=>b.expandByPoint(V(...m.userData.p.c)));const c=b.getCenter(new THREE.Vector3());vis.forEach(m=>nd.set(m,V(...m.userData.p.c).sub(c).multiplyScalar(1.4)));}
+ EXP.dirs.forEach((d,m)=>{if(!nd.has(m))m.position.set(0,0,0);});EXP.dirs=nd;}
+function setExplode(on){if(tour.active)return;EXP.on=on;$('tExp').setAttribute('aria-pressed',on);applyVis();if(on)expCompute();}
+function expTick(){const tv=EXP.on?1:0;if(EXP.v===tv)return;EXP.v+=(tv-EXP.v)*0.08;if(Math.abs(EXP.v-tv)<0.002)EXP.v=tv;EXP.dirs.forEach((d,m)=>m.position.copy(d).multiplyScalar(EXP.v));if(EXP.v===0&&!EXP.on){EXP.dirs.forEach((d,m)=>m.position.set(0,0,0));EXP.dirs=new Map();}}
+
+/* ================= GUIDED BREAKDOWNS (brain, abdomen) ================= */
+const GUIDES={
+ brain:{t:'Тархины хэсгүүд',mult:1.7,ctx:[],
+  intro:'Тархи ~1.4 кг жинтэй. Их тархи баруун, зүүн хоёр хагастай, хагас бүр 4 дэлбэнтэй. Өнгө бүр нэг хэсгийг заана. «Дараах» товчоор хэсэг бүртэй нэг нэгээр танилцаарай, эсвэл нэр дээр нь дараарай.',
+  units:[
+   {k:'frontal',t:'Духны дэлбэн',f:'Бодох, төлөвлөх, шийдэх, хөдлөх, ярих',c:'#e8705f',g:['frontal'],split:1},
+   {k:'parietal',t:'Оройн дэлбэн',f:'Хүрэлцэх, өвдөх мэдрэхүй, орон зай',c:'#eab04a',g:['parietal'],split:1},
+   {k:'temporal',t:'Чамархайн дэлбэн',f:'Сонсох, яриа ойлгох, санах ой',c:'#5cb579',g:['temporal'],split:1},
+   {k:'occipital',t:'Дагзны дэлбэн',f:'Харах',c:'#5a8ee0',g:['occipital'],split:1},
+   {k:'limbic',t:'Захын систем ба арал',f:'Сэтгэл хөдлөл, айдас, санах ой',c:'#c16bd0',g:['limbic','insula'],split:1},
+   {k:'deep',t:'Гүн бүтэц',f:'Мэдрэхүйг дамжуулах, даавар, хөдөлгөөн эхлүүлэх',c:'#7fc6d6',g:['diencephalon','basal','optic'],split:0},
+   {k:'white',t:'Цагаан бодис ба холбогч бие',f:'Хэсгүүдийг холбох «утас»',c:'#f2ede2',g:['whitematter','commissure'],split:1},
+   {k:'vent',t:'Тархины ховдол',f:'Тархийг дэвтээх шингэн',c:'#3d6fe0',g:['ventricles'],split:0},
+   {k:'cerebellum',t:'Бага тархи',f:'Тэнцвэр, хөдөлгөөний зохицуулалт',c:'#e17aa6',g:['cerebellum'],split:0},
+   {k:'stem',t:'Тархины иш',f:'Амьсгал, зүрхний цохилт, нойр',c:'#d79a6c',g:['brainstem'],split:0}]},
+ abd:{t:'Хэвлийн хөндий',mult:1.0,ctx:['ribs','costcart','sternum','thoracic','lumbar','sacrum','hip'],quad:true,
+  intro:'Хэвлийн хөндий нь өрцнөөс аарцаг хүртэлх биеийн хамгийн том хөндий. Эмч нар хүйсээр дайруулсан хоёр шугамаар 4 хэсэгт хуваадаг: баруун дээд (элэг, цөсний хүүдий), зүүн дээд (ходоод, дэлүү), баруун доод (мухар олгой), зүүн доод (тахир гэдэс). Өвдөж байгаа газраас нь аль эрхтэн өвдөж байгааг таамагладаг.',
+  units:[
+   {k:'liver',t:'Элэг',f:'Цөс ялгаруулах, хор саармагжуулах, энерги нөөцлөх',c:'#9a3a2c',g:['liver'],q:'Баруун дээд'},
+   {k:'gall',t:'Цөсний хүүдий',f:'Цөсийг хадгалах',c:'#3f8a3a',g:['gallbladder'],q:'Баруун дээд'},
+   {k:'stomach',t:'Ходоод',f:'Хоолыг хүчлээр задлах',c:'#e2786a',g:['stomach'],q:'Зүүн дээд'},
+   {k:'spleen',t:'Дэлүү',f:'Цус шүүх, дархлаа',c:'#7a3b6b',g:['spleen'],q:'Зүүн дээд'},
+   {k:'pancreas',t:'Нойр булчирхай',f:'Инсулин ба хоол задлах фермент',c:'#ecbd45',g:['pancreas'],q:'Ходоодны ард'},
+   {k:'duo',t:'Арван хоёр нугалаа гэдэс',f:'Цөс, ферменттэй хоол холилдох',c:'#f39a55',g:['duodenum'],q:'Төв дээд'},
+   {k:'small',t:'Нарийн гэдэс',f:'Шим тэжээл шингээх (6 м)',c:'#f4aaa2',g:['smallint'],q:'Төв'},
+   {k:'colon',t:'Бүдүүн гэдэс',f:'Ус шингээх, өтгөн бүрдүүлэх',c:'#c08a55',g:['colon','appendix','rectum'],q:'Хүрээлж'},
+   {k:'kidney',t:'Бөөр ба бөөрний дээд булчирхай',f:'Цус шүүж шээс гаргах; даавар',c:'#a3443f',g:['kidneys','adrenal'],q:'Нурууны дэргэд'},
+   {k:'bladder',t:'Шээсний суваг ба давсаг',f:'Шээс хадгалах',c:'#e2c08a',g:['urinary'],q:'Аарцганд'},
+   {k:'vessels',t:'Гол судас ба доод хөндий вен',f:'Цусны гол зам',c:'#d33b33',g:[],e:['descending aorta','inferior vena cava','celiac artery','superior mesenteric artery','common iliac artery','common iliac vein'],q:'Нурууны өмнө'}]}
+};
+const GD={active:false,key:null,i:-1,ex:0,exT:1,units:[],mset:new Set(),ctx:new Set(),labels:[],quad:null,min:false};
+const glabels=$('glabels'),gcard=$('guidecard');
+function gUnitMeshes(u){return meshes.filter(m=>{const p=m.userData.p;if(state.kids&&(KIDS_HIDE.has(p.g)||p.e==='urethra'))return false;if(u.g.includes(p.g))return true;if(u.e&&u.e.some(e=>p.e===e||p.e===e.replace(/^/,'left ')||p.e===e.replace(/^/,'right ')))return true;return false;});}
+async function startGuide(key){
+ if(!MAN)return;if(tour.active)stopTour();if(br.active)stopBrowse();if(PG.active||EY.active)exitScenes();select(null);if(state.full)setFull(false);
+ if(EXP.on){EXP.on=false;EXP.v=0;EXP.dirs.forEach((d,m)=>m.position.set(0,0,0));EXP.dirs=new Map();$('tExp').setAttribute('aria-pressed','false');}
+ if(GD.active)stopGuide(true);
+ const G0=GUIDES[key];GD.active=true;GD.key=key;GD.i=-1;GD.ex=0;GD.exT=key==='abd'?0:1;GD.units=[];GD.mset=new Set();GD.ctx=new Set(G0.ctx);
+ G0.units.forEach((u,ui)=>{const ms=gUnitMeshes(u);if(!ms.length)return;
+  const parts=u.split?[ms.filter(m=>m.userData.p.c[0]>=0),ms.filter(m=>m.userData.p.c[0]<0)].filter(a=>a.length):[ms];
+  const subs=parts.map(arr=>{const b=new THREE.Box3();arr.forEach(m=>b.expandByObject(m));return{ms:arr,c:b.getCenter(new THREE.Vector3())};});
+  ms.forEach(m=>{GD.mset.add(m);m.userData.oc=m.material.color.clone();m.material.color.set(u.c);m.userData.gu=ui;});
+  GD.units.push({def:u,ui,subs});});
+ const C=new THREE.Vector3();let n=0;GD.units.forEach(U=>U.subs.forEach(s=>{C.add(s.c);n++;}));C.multiplyScalar(1/Math.max(1,n));GD.center=C;
+ GD.units.forEach(U=>U.subs.forEach(s=>{s.dir=s.c.clone().sub(C).multiplyScalar(G0.mult);}));
+ glabels.innerHTML='';GD.labels=GD.units.map((U,k)=>{const b=document.createElement('button');b.className='glab';b.style.setProperty('--c',U.def.c);b.innerHTML=`<b>${U.def.t}</b><span>${U.def.f}</span>`;b.onclick=()=>{GD.i=k;gShow();};glabels.appendChild(b);return b;});
+ if(G0.quad){if(!GD.quad)GD.quad=buildQuad();GD.quad.visible=true;}
+ state.iso={t:'guide'};app.classList.add('guiding');controls.autoRotate=false;
+ applyVis();applyOpacity();gShow();setTimeout(()=>{resize();},80);
+}
+function buildQuad(){const g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.1,side:THREE.DoubleSide,depthWrite:false});
+ const y0=1.0,ph=new THREE.Mesh(new THREE.PlaneGeometry(0.36,0.32),m);ph.rotation.x=-Math.PI/2;ph.position.set(0,y0,0.02);g.add(ph);
+ const pv=new THREE.Mesh(new THREE.PlaneGeometry(0.32,0.3),m);pv.rotation.y=Math.PI/2;pv.position.set(0,y0,0.02);g.add(pv);
+ const lm=new THREE.LineBasicMaterial({color:0xf1c86a,transparent:true,opacity:0.8});const ln=(a,b)=>{const gg=new THREE.BufferGeometry().setFromPoints([a,b]);g.add(new THREE.Line(gg,lm));};
+ ln(V(-0.18,y0,0.14),V(0.18,y0,0.14));ln(V(0,y0-0.15,0.14),V(0,y0+0.15,0.14));
+ g.userData.q=[['Баруун дээд',V(-0.2,y0+0.13,0.12)],['Зүүн дээд',V(0.2,y0+0.13,0.12)],['Баруун доод',V(-0.2,y0-0.13,0.12)],['Зүүн доод',V(0.2,y0-0.13,0.12)]];
+ g.userData.qel=g.userData.q.map(([t])=>{const d=document.createElement('div');d.className='qlab';d.textContent=t;stage.appendChild(d);return d;});
+ g.renderOrder=9;scene.add(g);return g;}
+function gShow(){const G0=GUIDES[GD.key];
+ GD.units.forEach((U,k)=>{const on=GD.i<0||GD.i===k;U.subs.forEach(s=>s.ms.forEach(m=>m.material.emissive.set(GD.i===k?0x3a2a0a:0x000000)));GD.labels[k].classList.toggle('cur',GD.i===k);GD.labels[k].classList.toggle('dim',!on);});
+ applyOpacity();
+ if(GD.i<0)setTimeout(()=>gFocus(gBox(null)),GD.ex<0.5&&GD.exT>0.5?650:0);else gFocus(gBox(GD.i));
+ renderGuide();}
+function gFocus(b){if(b.isEmpty())return;const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3()).length();const dir=camera.position.clone().sub(controls.target).normalize();
+ const fov=camera.fov*Math.PI/180,fit=sz*0.62/Math.tan(fov/2)/Math.min(1,camera.aspect*0.62)+sz*0.2;c.y-=sz*0.12;flyTo(c,c.clone().add(dir.multiplyScalar(Math.max(0.1,Math.min(6,fit)))));}
+function gBox(k){const b=new THREE.Box3();GD.units.forEach((U,i)=>{if(k!=null&&i!==k)return;U.subs.forEach(s=>s.ms.forEach(m=>b.expandByObject(m)));});return b;}
+function renderGuide(){const G0=GUIDES[GD.key],U=GD.i>=0?GD.units[GD.i]:null;gcard.classList.toggle('min',GD.min);
+ const desc=U?(G[U.subs[0].ms[0].userData.p.g]||['','',''])[2]:G0.intro;
+ gcard.innerHTML=`<div class="tc-top"><span>${G0.t}${U?' · '+(GD.i+1)+'/'+GD.units.length:''}</span><span class="sp"></span><button class="tc-tog" data-q="min" aria-expanded="${!GD.min}">${GD.min?'Тайлбар харуулах':'Тайлбар нуух'}<svg viewBox="0 0 24 24"><path d="${GD.min?'M6 15l6-6 6 6':'M6 9l6 6 6-6'}"/></svg></button></div>
+ <h3>${U?`<span class="gdot" style="--c:${U.def.c}"></span>${U.def.t}`:G0.t}</h3>${U?`<div class="tc-la">${U.def.f}${U.def.q?' · '+U.def.q:''}</div>`:''}<p>${desc}</p>
+ <div class="tc-ctl"><button class="btn" data-q="prev" ${GD.i<0?'disabled':''}>Өмнөх</button><button class="btn pri" data-q="next">${GD.i<0?'Эхлэх':GD.i===GD.units.length-1?'Бүгдийг харах':'Дараах'}</button><button class="btn" data-q="all">${GD.i<0?'':'Бүгд'}</button><button class="btn" data-q="ex">${GD.exT>0.5?'Нийлүүлэх':'Задлах'}</button><button class="btn x" data-q="close">Гарах</button></div>`;
+ const allb=gcard.querySelector('[data-q=all]');if(GD.i<0)allb.hidden=true;
+ gcard.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{const a=b.dataset.q;
+  if(a==='prev'){GD.i=Math.max(-1,GD.i-1);gShow();}
+  if(a==='next'){GD.i=GD.i>=GD.units.length-1?-1:GD.i+1;gShow();}
+  if(a==='all'){GD.i=-1;gShow();}
+  if(a==='ex'){GD.exT=GD.exT>0.5?0:1;renderGuide();setTimeout(()=>gFocus(gBox(GD.i<0?null:GD.i)),700);}
+  if(a==='close')stopGuide();if(a==='min'){GD.min=!GD.min;renderGuide();}});}
+function stopGuide(silent){if(!GD.active)return;GD.active=false;app.classList.remove('guiding');
+ GD.mset.forEach(m=>{if(m.userData.oc)m.material.color.copy(m.userData.oc);m.material.emissive.set(0x000000);m.position.set(0,0,0);});GD.mset=new Set();
+ glabels.innerHTML='';$('glines').innerHTML='';GD.labels=[];if(GD.quad){GD.quad.visible=false;GD.quad.userData.qel.forEach(e=>e.hidden=true);}
+ if(!silent){state.iso=null;setTimeout(resize,60);setIso(null);}}
+const gtmp=new THREE.Vector3();
+function guideTick(dt){
+ GD.ex+=(GD.exT-GD.ex)*Math.min(1,dt*3);if(Math.abs(GD.ex-GD.exT)<0.001)GD.ex=GD.exT;
+ GD.units.forEach(U=>U.subs.forEach(s=>s.ms.forEach(m=>m.position.copy(s.dir).multiplyScalar(GD.ex))));
+ const W=stage.clientWidth,H=stage.clientHeight,an=[];
+ GD.units.forEach((U,k)=>{const sb=U.subs[0];gtmp.copy(sb.c).add(sb.dir.clone().multiplyScalar(GD.ex)).project(camera);const el=GD.labels[k];
+  if(gtmp.z>1){el.hidden=true;return;}el.hidden=false;an.push({k,el,x:(gtmp.x+1)/2*W,y:(1-gtmp.y)/2*H,w:el.offsetWidth||120,h:el.offsetHeight||30,c:U.def.c});});
+ let svg='';
+ if(an.length){const mid=an.reduce((a,b)=>a+b.x,0)/an.length,minX=Math.min(...an.map(a=>a.x)),maxX=Math.max(...an.map(a=>a.x));
+  const top=60,bot=H-(gcard.offsetHeight||0)-24,gap=6;
+  const L=an.filter(a=>a.x<mid).sort((a,b)=>a.y-b.y),R=an.filter(a=>a.x>=mid).sort((a,b)=>a.y-b.y);
+  const lay=(arr,side)=>{let y=top;arr.forEach(a=>{a.ly=Math.max(a.y-a.h/2,y);y=a.ly+a.h+gap;});const over=y-gap-Math.max(top+40,bot);if(over>0)arr.forEach(a=>a.ly=Math.max(top,a.ly-over));
+   const colX=side<0?Math.max(8,minX-40-Math.max(...arr.map(a=>a.w),0)):Math.min(W-70-Math.max(...arr.map(a=>a.w),0),maxX+40);
+   arr.forEach(a=>{a.lx=side<0?colX+(Math.max(...arr.map(q=>q.w))-a.w):colX;a.el.style.transform=`translate(${a.lx.toFixed(1)}px,${a.ly.toFixed(1)}px)`;
+    const ex=side<0?a.lx+a.w:a.lx,ey=a.ly+a.h/2,dim=GD.i>=0&&GD.i!==a.k;
+    svg+=`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${a.c}" stroke-width="1.5" opacity="${dim?0.25:0.85}"/><circle cx="${a.x.toFixed(1)}" cy="${a.y.toFixed(1)}" r="3.5" fill="${a.c}" stroke="#0b1012" stroke-width="1.5" opacity="${dim?0.35:1}"/>`;});};
+  lay(L,-1);lay(R,1);}
+ $('glines').innerHTML=svg;
+ if(GD.quad&&GD.quad.visible){const show=GD.ex<0.35;GD.quad.children.forEach(c=>c.visible=show);GD.quad.userData.q.forEach(([t,p],i)=>{const el=GD.quad.userData.qel[i];gtmp.copy(p).project(camera);el.hidden=!show||gtmp.z>1;el.style.transform=`translate(${((gtmp.x+1)/2*W).toFixed(1)}px,${((1-gtmp.y)/2*H).toFixed(1)}px)`;});}
+}
+
+/* ================= PICKING ================= */
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let down=null;const cv=renderer.domElement;
+cv.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:performance.now()};});
+cv.addEventListener('pointerup',e=>{if(!down)return;const dx=e.clientX-down.x,dy=e.clientY-down.y;if(dx*dx+dy*dy<64&&performance.now()-down.t<600)pick(e);down=null;});
+function pick(e){
+ if(tour.active||PG.active)return;
+ if(PN.active){painTap(e);return;} // өвдөлтийн горимд цэг тавих
+ const r=cv.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);
+ if(EY.active){eyePick();return;}
+ if(GD.active){const h=ray.intersectObjects(meshes.filter(m=>m.visible&&GD.mset.has(m)),false)[0];if(h){GD.i=h.object.userData.gu;gShow();}return;}
+ if(br.active){const h=ray.intersectObjects(meshes.filter(m=>m.visible),false)[0];if(h){const i=br.list.indexOf(h.object.userData.id);if(i>=0){br.all=false;br.i=i;brShow();}}return;}
+ const cand=meshes.filter(m=>m.visible&&!(m.userData.layer==='skin'&&m.material.opacity<0.6)&&!(m.userData.layer==='muscle'&&m.material.opacity<0.45));
+ let hit=ray.intersectObjects(cand,false)[0];
+ if(!hit){hit=ray.intersectObjects(meshes.filter(m=>m.visible&&m.userData.layer==='skin'),false)[0];}
+ select(hit?hit.object.userData.id:null);
+}
+
+/* ================= ӨВДӨЛТ ТЭМДЭГЛЭХ (pain diary + possible causes) ================= */
+// Өвдөлтийн төрлүүд: [түлхүүр, монгол нэр]
+const PTYPE=[['stab','Хатгаж'],['burn','Түлж / хорсож'],['press','Дарж / чинэрч'],['cramp','Базлаж / давалгаалж'],['throb','Лугшиж'],['dull','Шаналж / удаан']];
+// Хугацааны сонголтууд
+const PDUR=[['now','Дөнгөж сая'],['hours','Хэдэн цаг'],['days','1–3 хоног'],['week','1 долоо хоног+'],['long','Удаан, байнга']];
+// Дагалдах шинж тэмдгүүд: [түлхүүр, нэр]
+const PSYM=[['fever','Халуурч байна'],['vomit','Дотор муухайрах / бөөлжих'],['diarr','Суулгах'],['constip','Өтгөн хатах'],['cough','Ханиалгах'],['breath','Амьсгаа давчдах'],['swell','Хавдсан / улайсан'],['injury','Унасан / гэмтсэн'],['urine','Шээхэд хорсох'],['meal','Хоолны дараа нэмэгддэг'],['move','Хөдлөхөд нэмэгддэг'],['numb','Мэдээ алдах / шивэрнэх'],['radiate','Өөр газар руу дамждаг']];
+// Шалтгаан: [нэр, тайлбар, тохирох шинж/төрлийн түлхүүрүүд (зайгаар), яаралтай эсэх 1/0]
+const C=(t,d,k,u)=>({t,d,k:(k||'').split(' ').filter(Boolean),u:!!u});
+// Бүс бүрийн мэдээлэл: t — нэр, a — насанд хүрэгч, c — хүүхэд, r — яаралтай шинж
+const REGN={
+ head:{t:'Толгой',a:[C('Хүчдэлийн толгой өвдөлт','Толгойг бүслэн дарж, чангарсан мэт өвддөг. Стресс, нойр дутах, удаан дэлгэц ширтэхээс.','press dull'),C('Мигрень','Ихэвчлэн нэг талдаа лугшиж өвдөнө. Гэрэл, дуу чимээнд эмзэг, дотор муухайрч болно.','throb vomit'),C('Синусит (дайвар хөндийн үрэвсэл)','Дух, нүдний орчим чинэрч, бөхийхөд нэмэгддэг. Ханиадны дараа гардаг.','press fever'),C('Ус дутагдал, өлсөх','Ус бага уух, хоол алгасах, кофе гэнэт хасахаас.','dull'),C('Цусны даралт ихсэх','Дагзаар чинэрч өвдөх, нүд эрвэлзэх. Даралтаа хэмжих хэрэгтэй.','press throb')],
+  c:[C('Ханиад, вирусын халдвар','Халууралттай үед толгой өвдөх нь түгээмэл.','fever dull'),C('Ус дутагдал, өлсөх, нойр дутах','Хүүхдэд хамгийн түгээмэл энгийн шалтгаан.','dull press'),C('Хараа муудах','Унших, дэлгэц үзсэний дараа дух орчим өвддөг бол нүдний эмчид үзүүлнэ.','press dull'),C('Мигрень','Хүүхдэд ч тохиолдоно: лугших, бөөлжих, гэрэлд эмзэг.','throb vomit'),C('Синусит','Ханиадны дараа нүүр, дух чинэрнэ.','press fever')],
+  r:['Гэнэтийн, амьдралдаа хамгийн хүчтэй толгой өвдөлт','Хүзүү хөших + халуурах','Ухаан балартах, нойрмоглох, таталт','Нүүр, гар мэдээ алдах, ярианы өөрчлөлт','Толгойн гэмтлийн дараах өвдөлт, бөөлжих']},
+ face:{t:'Нүүр, эрүү, чих',a:[C('Шүдний өвчин','Шүд цоорох, буйл үрэвсэх — лугших, хүйтэн халуунд эмзэг.','throb stab'),C('Синусит','Хацар, нүдний доор чинэрнэ.','press fever'),C('Чихний үрэвсэл','Чих дотор өвдөж, сонсгол бүдгэрнэ.','stab fever'),C('Эрүүний үений өвдөлт','Зажлах, ам ангайхад чихний өмнө өвднө.','move dull'),C('Гурвалсан мэдрэлийн өвдөлт','Нүүрний нэг талд цахилгаан цохих шиг хурц хатгана.','stab')],
+  c:[C('Дунд чихний үрэвсэл','Ханиадны дараа, шөнө уйлах, чихээ татах, халуурах.','stab fever'),C('Шүд цоорох, шүд ургах','Лугших өвдөлт, нярайд шүд ургахад буйл хавдана.','throb'),C('Синусит','Ханиадны дараа хацар, дух чинэрнэ.','press fever'),C('Гахайн хавдар','Чихний доор хавдаж, халуурна.','swell fever')],
+  r:['Нүүр нэг талаараа унжих, мэдээ алдах','Нүдний хараа гэнэт муудах','Нүүр хавдаж, амьсгалахад хэцүү болох']},
+ neck:{t:'Хүзүү, хоолой',a:[C('Булчин чангарах','Буруу унтах, удаан бөхийх — хөдлөхөд нэмэгддэг.','move dull press'),C('Хоолой өвдөх (фарингит, тонзиллит)','Залгихад өвдөнө, ихэвчлэн вирус.','burn fever'),C('Тунгалгийн булчирхай томрох','Ханиадны үед хүзүүнд жижиг эмзэг булцуу.','swell fever'),C('Нугалам хоорондын жийргэвч','Хүзүүнээс гар руу дамжиж, мэдээ алдана.','radiate numb')],
+  c:[C('Хоолой өвдөх','Вирус эсвэл стрептококк. Залгихад өвдөнө.','burn fever'),C('Тунгалгийн булчирхай томрох','Халдварын үед түгээмэл.','swell fever'),C('Буруу унтсанаас булчин чангарах','Толгой эргүүлэхэд өвдөнө.','move')],
+  r:['Хүзүү хөших + халуурах + толгой өвдөх','Амьсгалах, залгихад маш хэцүү болох, шүлсээ залгиж чадахгүй']},
+ chest:{t:'Цээж',a:[C('Булчин, хавирганы мөгөөрсний үрэвсэл','Тодорхой цэг дээр дарахад өвддөг, хөдлөхөд нэмэгддэг.','move stab'),C('Ходоодны хүчил сөрөх','Өвчүүний ард түлж хорсоно, хоолны дараа, хэвтэхэд нэмэгдэнэ.','burn meal'),C('Зүрхний бах, шигдээс','Дарж шахах, хүндрэх өвдөлт. Зүүн гар, эрүү, нуруу руу дамжиж, хөлрөх.','press radiate breath',1),C('Уушгины хатгалгаа, гялтангийн үрэвсэл','Ханиалгах, халуурах, амьсгалахад хатгана.','stab cough fever breath'),C('Түгшүүр','Зүрх дэлсэх, амьсгал давхцах. Бусад шалтгааныг эхэлж үгүйсгэнэ.','press breath')],
+  c:[C('Ханиад, бронхит','Ханиалгаснаас цээж өвдөх нь түгээмэл.','cough dull'),C('Уушгины хатгалгаа','Халуурах, хурдан амьсгалах, ханиалгах.','fever cough breath',1),C('Булчин, хавирга','Тоглох, гэмтлийн дараа.','move injury'),C('Багтраа','Амьсгалахад исгэрэх, цээж давчдах.','breath cough')],
+  r:['Дарж шахсан өвдөлт 5 минутаас удаан','Гар, эрүү, нуруу руу дамжих, хүйтэн хөлс гарах','Амьсгаа давчдах, уруул хөхрөх','Ухаан алдах']},
+ epi:{t:'Хэвлийн дээд хэсэг (ходоодны хонхор)',a:[C('Ходоодны үрэвсэл, шарх','Хоосон ходоодонд эсвэл хоолны дараа түлж өвднө.','burn meal'),C('Хүчил сөрөх','Өвчүүний доор түлэх, исгэлэн оргих.','burn meal'),C('Нойр булчирхайн үрэвсэл','Хүчтэй, нуруу руу дамжина, бөөлжинө. Тослог хоол, архины дараа.','press radiate vomit',1),C('Хоолонд хордох','Бөөлжих, суулгах дагалдана.','cramp vomit diarr'),C('Зүрх','Заримдаа зүрхний өвдөлт ходоод өвдөх мэт мэдрэгддэг.','press breath',1)],
+  c:[C('Ходоод гэдэсний вирусын халдвар','Бөөлжих, суулгах дагалдана.','cramp vomit diarr fever'),C('Өтгөн хатах, хий','Хүүхдийн хэвлий өвдөх хамгийн түгээмэл шалтгаан.','cramp constip'),C('Хэт их идэх, хүчил','Хоолны дараа.','meal burn'),C('Түгшүүр, стресс','Сургууль, цэцэрлэгт явахын өмнө «ходоод өвдөх».','dull')],
+  r:['Бөөлжисэнд цус эсвэл ногоон шингэн','Хэвлий хатуурч, хүрэхэд маш өвдөх','Хар, давирхай шиг өтгөн']},
+ ruq:{t:'Баруун дээд хэвлий',a:[C('Цөсний чулуу, цөсний хүүдийн үрэвсэл','Тослог хоолны дараа давалгаалж өвдөнө, баруун мөр, дал руу дамжина.','cramp meal radiate vomit'),C('Элэгний үрэвсэл','Чинэрэх, ядрах, арьс нүд шарлах.','press dull'),C('Арван хоёр нугалаа гэдэсний шарх','Хоосон ходоодонд түлнэ.','burn meal'),C('Баруун уушги, бөөр','Ханиалгах эсвэл нуруу руу өвдөх бол.','cough radiate')],
+  c:[C('Өтгөн хатах, хий','Түгээмэл.','cramp constip'),C('Вирусын халдвар','Бөөлжих, суулгах.','vomit diarr fever'),C('Уушгины хатгалгаа','Доод хэсгийн хатгалгаа хэвлий өвдөх мэт мэдрэгдэж болно.','cough fever breath')],
+  r:['Арьс, нүд шарлах + халуурах','Хүчтэй өвдөлт 6 цагаас удаан']},
+ luq:{t:'Зүүн дээд хэвлий',a:[C('Ходоодны үрэвсэл','Түлэх, хоолтой холбоотой.','burn meal'),C('Гэдэсний хий, өтгөн хатах','Дүүрэх, давалгаалах.','cramp constip'),C('Дэлүүний гэмтэл','Гэмтлийн дараа зүүн мөр рүү дамжина.','injury radiate',1),C('Бөөр','Нуруу руу, шээстэй холбоотой.','radiate urine')],
+  c:[C('Өтгөн хатах, хий','Хамгийн түгээмэл.','cramp constip'),C('Вирусын халдвар','Бөөлжих, суулгах.','vomit diarr'),C('Гэмтэл','Унасны дараа өвдвөл эмчид үзүүлнэ.','injury',1)],
+  r:['Унасан, цохиулсны дараах хэвлийн өвдөлт','Цайх, ухаан бүдгэрэх']},
+ umb:{t:'Хүйсний орчим',a:[C('Гэдэсний вирусын халдвар','Давалгаалсан өвдөлт, суулгах, бөөлжих.','cramp diarr vomit'),C('Гэдэс дүүрэх, хий','Хоолны дараа.','cramp meal'),C('Мухар олгойн үрэвслийн эхэн үе','Хүйсний орчмоос эхэлж, хэдэн цагт баруун доод руу шилжинэ.','dull fever vomit',1),C('Хүйсний ивэрхий','Хүйсэнд товгор гарч, ачаалалд өвднө.','swell move')],
+  c:[C('Өтгөн хатах','Хүүхдийн хэвлий өвдөх хамгийн түгээмэл шалтгаан.','cramp constip'),C('Гэдэсний вирус','Бөөлжих, суулгах.','vomit diarr fever'),C('Түгшүүр, «функциональ» өвдөлт','Байнга давтагдах ч өсөлтөд нөлөөлөхгүй.','dull'),C('Мухар олгойн эхэн үе','Дараа нь баруун доод руу шилжвэл яаралтай.','fever vomit',1)],
+  r:['Өвдөлт баруун доод руу шилжих + халуурах','Хэвлий хатуурах']},
+ rlq:{t:'Баруун доод хэвлий',a:[C('Мухар олгойн үрэвсэл','Хүйснээс эхэлж баруун доод руу шилжинэ. Алхах, ханиалгахад өвднө, халуурч, хоолонд дургүй болно.','fever vomit move',1),C('Өтгөн хатах, хий','Давалгаалсан, бие засвал хөнгөрнө.','cramp constip'),C('Бөөрний чулуу','Нуруунаас цавь руу давалгаалсан хурц өвдөлт.','cramp radiate urine'),C('Цавины ивэрхий','Цавинд товгор, ачаалалд өвднө.','swell move'),C('Эмэгтэйд: өндгөвчний уйланхай','Нэг талын доод хэвлийн өвдөлт.','stab')],
+  c:[C('Мухар олгойн үрэвсэл','Үсрэх, алхахад өвдөх, халуурах, бөөлжих. Хүүхдэд хурдан хүндэрдэг.','fever vomit move',1),C('Гэдэсний тунгалгийн булчирхайн үрэвсэл','Ханиадны дараа мухар олгой шиг өвдөж болно.','fever dull'),C('Өтгөн хатах','Түгээмэл.','cramp constip'),C('Шээсний замын халдвар','Шээхэд хорсох.','urine fever')],
+  r:['Халуурах + бөөлжих + баруун доод хэвлийн өвдөлт','Алхаж чадахгүй, бөхийж явах','Хэвлий хатуурах']},
+ llq:{t:'Зүүн доод хэвлий',a:[C('Өтгөн хатах','Хамгийн түгээмэл.','cramp constip'),C('Дивертикулит','Нас ахисан хүмүүст, халуурна.','dull fever'),C('Бөөрний чулуу','Нуруунаас цавь руу давалгаалсан.','cramp radiate urine'),C('Эмэгтэйд: өндгөвч','Нэг талын доод хэвлийн өвдөлт.','stab')],
+  c:[C('Өтгөн хатах','Хамгийн түгээмэл.','cramp constip'),C('Гэдэсний вирус','Суулгах.','diarr vomit'),C('Шээсний замын халдвар','Шээхэд хорсох.','urine')],
+  r:['Өтгөнд цус гарах','Халуурах + хүчтэй өвдөлт']},
+ supra:{t:'Хэвлийн доод төв (давсаг)',a:[C('Шээсний замын халдвар','Шээхэд хорсох, ойр ойрхон шээх.','urine burn'),C('Давсаг дүүрэх','Шээс барьснаас.','press'),C('Эмэгтэйд: сарын тэмдгийн өвдөлт','Базлах, сарын тэмдэгтэй холбоотой.','cramp'),C('Түрүү булчирхай (эрэгтэй)','Шээс сул гарах, дунд хэсэгт эвгүйцэх.','dull urine')],
+  c:[C('Шээсний замын халдвар','Шээхэд хорсох, халуурах.','urine fever'),C('Өтгөн хатах','Түгээмэл.','cramp constip')],
+  r:['Шээж чадахгүй болох','Шээсэнд цус + халуурах']},
+ groin:{t:'Цавь',a:[C('Цавины ивэрхий','Товгор гарч, ханиалгах, өргөхөд томорно.','swell move'),C('Булчин суналт','Спортын дараа.','move injury'),C('Тунгалгийн булчирхай','Хөлд шарх, халдвар байвал.','swell')],
+  c:[C('Цавины ивэрхий','Уйлах, чангахад товгор гарна.','swell'),C('Булчин','Тоглоомын дараа.','move')],
+  r:['Ивэрхий хатуурч, буцаж орохгүй, улайх','Төмсөгний гэнэтийн хүчтэй өвдөлт']},
+ upperback:{t:'Нурууны дээд хэсэг',a:[C('Булчин чангарах','Буруу суулт, удаан компьютер.','press dull move'),C('Нугалам, жийргэвч','Гар руу дамжиж болно.','radiate numb'),C('Зүрх, уушги','Ховор ч цээжний өвдөлттэй хамт бол яаралтай.','press breath',1)],
+  c:[C('Хүнд цүнх, буруу суулт','Түгээмэл.','dull press'),C('Булчин суналт','Спорт, тоглоом.','move')],
+  r:['Цээжний өвдөлт, амьсгаа давчдахтай хамт']},
+ lowerback:{t:'Бүсэлхий, нурууны доод хэсэг',a:[C('Булчин суналт','Хүнд юм өргөсөн, мушгирсны дараа.','move press dull'),C('Нугалам хоорондын ивэрхий','Хөл рүү дамжиж, мэдээ алдана (суудлын мэдрэл).','radiate numb stab'),C('Бөөрний чулуу','Хажуу нуруунаас цавь руу давалгаална.','cramp radiate urine'),C('Бөөрний үрэвсэл','Халуурах, шээхэд хорсох.','fever urine',1)],
+  c:[C('Хүнд цүнх, буруу суулт','Түгээмэл.','dull'),C('Бөөрний халдвар','Халуурах, шээхэд хорсох.','fever urine',1),C('Спортын гэмтэл','Удаан үргэлжилбэл үзүүлнэ.','injury move')],
+  r:['Шээс, өтгөнөө барьж чадахгүй болох','Хоёр хөл сулрах, мэдээ алдах','Халуурах + нуруу өвдөх']},
+ shoulder:{t:'Мөр',a:[C('Мөрний шөрмөсний үрэвсэл','Гараа өргөхөд өвдөнө.','move dull'),C('Хөлдсөн мөр','Хөдөлгөөн хязгаарлагдана.','dull'),C('Дамжсан өвдөлт','Баруун мөр — цөс, зүүн мөр — зүрх байж болно.','radiate',1)],
+  c:[C('Унасан, гэмтсэн','Шөрмөс татагдах, эгэм хугарах.','injury',1),C('Булчин суналт','Тоглоомын дараа.','move')],
+  r:['Гэмтлийн дараа гараа хөдөлгөж чадахгүй','Зүүн мөр + цээжний өвдөлт']},
+ arm:{t:'Гар, тохой',a:[C('Тохойн шөрмөсний үрэвсэл','Атгах, мушгихад тохойн гадна тал өвдөнө.','move dull'),C('Булчин суналт','Ачааллын дараа.','move'),C('Мэдрэл дарагдах','Хуруу руу шивэрнэх.','numb radiate'),C('Гэмтэл, хугарал','Унасны дараа хавдах.','injury swell',1)],
+  c:[C('Тохой мултрах (жижиг хүүхдэд)','Гараас татсны дараа гараа хөдөлгөхгүй байх.','injury',1),C('Гэмтэл, хугарал','Хавдаж, хөдөлгөж чадахгүй.','injury swell',1),C('Булчин','Тоглоомын дараа.','move')],
+  r:['Гэмтлийн дараа гар мурийх, хөдөлгөж чадахгүй']},
+ hand:{t:'Бугуй, гар сарвуу',a:[C('Бугуйн сувгийн хам шинж','Шөнө хуруу мэдээ алдана.','numb'),C('Шөрмөсний үрэвсэл','Давтан хөдөлгөөнөөс.','move'),C('Үе мөчний үрэвсэл','Өглөө хөших, хавдах.','swell dull'),C('Гэмтэл','Унахдаа гараа тулсан.','injury swell',1)],
+  c:[C('Гэмтэл, шөрмөс татагдах','Унахдаа тулсан.','injury swell'),C('Шарх, хатгалт','Халдвар авбал улайж хавдана.','swell')],
+  r:['Хуруу цайх, хөхрөх, мэдрэхгүй болох']},
+ hip:{t:'Ташаа, өгзөг',a:[C('Үе мөчний элэгдэл (артроз)','Алхахад, өглөө хөших.','move dull'),C('Сав үрэвсэл (бурсит)','Хажуу тийш хэвтэхэд өвднө.','press'),C('Суудлын мэдрэл','Өгзөгнөөс хөл рүү дамжина.','radiate numb')],
+  c:[C('Түр зуурын үе үрэвсэл','Ханиадны дараа доголох.','move'),C('Гэмтэл','Унасны дараа.','injury')],
+  r:['Халуурах + доголох (хүүхдэд)','Унасны дараа хөл дээрээ гишгэж чадахгүй']},
+ thigh:{t:'Гуя',a:[C('Булчин суналт','Спорт, гүйлтийн дараа.','move'),C('Суудлын мэдрэлээс дамжсан','Нуруунаас доош.','radiate numb'),C('Гүн венийн бүлэн','Нэг хөл хавдаж, улайж, халуу оргино.','swell',1)],
+  c:[C('Өсөлтийн өвдөлт','Шөнө хоёр хөлөнд, өглөө арилдаг.','dull'),C('Булчин суналт','Тоглоомын дараа.','move')],
+  r:['Нэг хөл гэнэт хавдах, улайх, халуу оргих']},
+ knee:{t:'Өвдөг',a:[C('Шөрмөс, мениск гэмтэл','Мушгирсны дараа хавдах, түгжрэх.','injury swell move'),C('Үе мөчний элэгдэл','Шатаар өгсөхөд, нас ахих тусам.','dull move'),C('Үений үрэвсэл','Хавдаж халуу оргино.','swell fever',1)],
+  c:[C('Өсөлтийн өвдөлт','Шөнө, хоёр хөлд.','dull'),C('Осгуд–Шлаттер','Өсвөр насанд өвдөгний доор товгор өвдөнө, спортын дараа.','move press'),C('Гэмтэл','Унасан.','injury swell')],
+  r:['Өвдөг хавдаж, улайж, халуурах','Гишгэж чадахгүй болох']},
+ leg:{t:'Шилбэ, тахилзуур',a:[C('Булчин татах','Шөнө тахилзуур базлана — ус, эрдэс дутах.','cramp'),C('Ачааллын өвдөлт','Гүйлтийн дараа шилбэ өвдөнө.','move'),C('Гүн венийн бүлэн','Нэг хөл хавдаж, тахилзуур эмзэглэнэ. Удаан суусны дараа.','swell press',1)],
+  c:[C('Өсөлтийн өвдөлт','Шөнө хоёр хөлд, өглөө арилна.','dull'),C('Булчин татах','Тоглоомын дараа.','cramp'),C('Гэмтэл','Унасан.','injury')],
+  r:['Нэг хөл гэнэт хавдах + амьсгаа давчдах','Халуурах + доголох']},
+ foot:{t:'Шагай, хөл',a:[C('Шөрмөс татагдах (мушгирах)','Шагай хавдаж хөхөрнө.','injury swell'),C('Тулай','Эрхий хуруу гэнэт улайж хавдах, шөнө.','swell throb'),C('Ул шөрмөсний үрэвсэл','Өглөө анхны алхамд өсгий өвдөнө.','stab move'),C('Хумс шигдэх','Хурууны хажуу улайна.','swell')],
+  c:[C('Мушгирах, гэмтэл','Түгээмэл.','injury swell'),C('Өсгийн өсөлтийн өвдөлт','Спортын дараа өсгий өвдөнө.','move'),C('Тохиромжгүй гутал','Үрэлт, цэврүү.','burn')],
+  r:['Гишгэж чадахгүй, мурийсан','Хөл хүйтэн, цайх, хөхрөх']}
+};
+// Цэгийн координатаас биеийн бүсийг тодорхойлох (x>0 — хүний зүүн тал, z>0 — урд тал, y — өндөр метрээр)
+function painRegion(p){
+ const x=p.x,y=p.y,z=p.z,ax=Math.abs(x),side=x<0?'Баруун':'Зүүн',back=z<-0.02; // тал ба ар/урдыг тооцох
+ let k;
+ if(y>1.43&&(z>0.035||y>1.52))k=(z>0.035&&y<1.62)?'face':'head';   // нүүр эсвэл толгой
+ else if(y>1.36&&ax<0.085)k='neck';                                   // хүзүү
+ else if(ax>0.15&&y>0.62)k=y>1.27?'shoulder':y>0.83?'arm':'hand';     // гар
+ else if(y>0.84){                                                      // их бие
+  if(back)k=y>1.15?'upperback':y>0.92?'lowerback':'hip';              // ар тал
+  else if(ax>0.12&&y<0.97)k='hip';                                     // ташааны хажуу
+  else if(y>1.17)k='chest';                                            // цээж
+  else if(y>1.06)k=x<-0.045?'ruq':x>0.045?'luq':'epi';                 // хэвлийн дээд хэсэг
+  else if(y>0.97)k=ax<0.045?'umb':(x<0?'ruq':'luq');                   // хүйсний түвшин
+  else k=ax<0.045?'supra':(x<0?'rlq':'llq');                           // хэвлийн доод хэсэг
+ }
+ else if(y>0.73)k=back?'hip':ax<0.12?'groin':'thigh';                  // цавь эсвэл өгзөг
+ else k=y>0.46?'thigh':y>0.37?'knee':y>0.08?'leg':'foot';               // хөл
+ const sided=['chest','shoulder','arm','hand','hip','thigh','knee','leg','foot','upperback','lowerback','groin','face'].includes(k); // хоёр талтай бүсүүд
+ const t=REGN[k].t;
+ return {k,label:sided?side+' '+t.charAt(0).toLowerCase()+t.slice(1):t};  // жишээ: «Баруун өвдөг»
+}
+// Төлөв
+const PN={active:false,who:null,step:'who',mode:'dot',cur:null,list:[],sel:null,saved:null,drawing:false,last:null,g:new THREE.Group()};
+scene.add(PN.g);PN.g.visible=false;
+// Хадгалсан тэмдэглэлүүдийг ачаалах (зөвхөн энэ хөтөчид хадгалагдана)
+try{PN.list=JSON.parse(localStorage.getItem('anat-pain')||'[]');}catch(e){PN.list=[];}
+// Хуучин (нэг цэгтэй) тэмдэглэлийг олон цэгтэй хэлбэрт шилжүүлэх
+PN.list.forEach(en=>{if(!en.pts)en.pts=en.p?[{p:en.p,r:en.r,rl:en.rl}]:[];});
+// Тэмдэглэлийн гарчиг: бүх цэгийн бүсийг жагсаах
+const painTitle=en=>[...new Set(en.pts.map(q=>q.rl))].join(', ')||'Цэг тавина уу';
+// Тэмдэглэлийн үндсэн цэг/бүсийг эхний цэгээр шинэчлэх
+function painSync(en){const f=en.pts[0];en.p=f?f.p:null;en.r=f?f.r:null;en.rl=painTitle(en);}
+function painSave(){try{localStorage.setItem('anat-pain',JSON.stringify(PN.list));}catch(e){}}
+// Тэмдэглэгээний материал: улаан гэрэлтэй цэг
+const PMAT=new THREE.MeshBasicMaterial({color:0xff2a1f,transparent:true,opacity:1,depthTest:false,toneMapped:false});
+const PRING=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.95,depthTest:false,toneMapped:false}); // цэгийн цагаан хүрээ
+const PMAT2=new THREE.MeshBasicMaterial({color:0xff4a30,transparent:true,opacity:0.6,depthTest:false,toneMapped:false});
+const PSPH=new THREE.SphereGeometry(1,14,10);
+// Бүх тэмдэглэгээг дахин зурах
+function painDraw(){while(PN.g.children.length)PN.g.remove(PN.g.children[0]);
+ const all=PN.list.concat(PN.cur&&PN.step!=='who'?[PN.cur]:[]);
+painLabels(all);
+ all.forEach(en=>{if(!en.pts||!en.pts.length)return;const sel=en===PN.cur||en.id===PN.sel;
+  en.pts.forEach(q=>{ // тэмдэглэлийн цэг бүрийг зурах
+   const ring=new THREE.Mesh(PSPH,PRING);ring.position.fromArray(q.p);ring.scale.setScalar(sel?0.012:0.009);ring.renderOrder=30;ring.userData.b=sel?0.012:0.009;ring.userData.pulse=sel;PN.g.add(ring); // цагаан хүрээ
+   const m=new THREE.Mesh(PSPH,PMAT);m.position.fromArray(q.p);m.scale.setScalar(sel?0.009:0.0065);m.renderOrder=31;m.userData.pid=en.id;m.userData.b=sel?0.009:0.0065;m.userData.pulse=sel;PN.g.add(m);}); // улаан цэг
+  (en.s||[]).forEach(q=>{const d=new THREE.Mesh(PSPH,PMAT2);d.position.fromArray(q);d.scale.setScalar(0.0045);d.userData.b=0.0045;d.renderOrder=29;PN.g.add(d);});});}
+// Бие дээрх шошгууд: цэг бүрийн хажууд дугаар ба бүсийн нэр
+const plabEl=$('painlabels');PN.labs=[];
+function painLabels(all){plabEl.innerHTML='';PN.labs=[];
+ all.forEach(en=>{const sel=en===PN.cur||en.id===PN.sel;
+  en.pts.forEach((q,i)=>{const d=document.createElement('div');d.className='plab'+(sel?'':' dim'); // сонгоогүй тэмдэглэлийг бүдэг, зөвхөн дугаартай
+   d.innerHTML=`<i>${i+1}</i>${sel?q.rl:''}`;plabEl.appendChild(d);PN.labs.push({el:d,v:V(...q.p)});});});}
+// Шошгуудыг 3D цэгийн дэлгэц дээрх байрлал руу шилжүүлэх (кадр бүрт)
+const ptmp=new THREE.Vector3();
+function painLabelTick(){const W=stage.clientWidth,H=stage.clientHeight;PN.labs.forEach(L=>{ptmp.copy(L.v).project(camera);
+ const off=ptmp.z>1||Math.abs(ptmp.x)>1.2||Math.abs(ptmp.y)>1.2;L.el.style.display=off?'none':'flex';
+ if(!off)L.el.style.transform=`translate(${((ptmp.x+1)/2*W+12).toFixed(1)}px,${((1-ptmp.y)/2*H-11).toFixed(1)}px)`;});}
+// ===== Буцаах (undo): өөрчлөлт бүрийн өмнө төлөвийн хуулбарыг хадгална =====
+PN.undo=[];
+function painPush(){PN.undo.push(JSON.stringify({cur:PN.cur,list:PN.list,step:PN.step,sel:PN.sel})); // одоогийн төлөвийг хадгалах
+ if(PN.undo.length>60)PN.undo.shift();painUndoBtn();}                                           // хэт олон болбол хуучныг нь хаях
+function painUndo(){const s=PN.undo.pop();if(!s)return;const o=JSON.parse(s);                    // сүүлийн хуулбарыг авах
+ PN.cur=o.cur;PN.list=o.list;PN.step=o.step;PN.sel=o.sel;                                        // төлөвийг сэргээх
+ if(PN.step==='who')PN.step='place';painSave();painDraw();renderPain();}                         // хадгалж, дахин зурах
+function painUndoBtn(){const b=$('pnUndo');if(b)b.disabled=!PN.undo.length;}                    // товчийг идэвхтэй/идэвхгүй болгох
+// Ctrl+Z (Mac дээр Cmd+Z) товчлолоор буцаах — бичих талбарт биш үед
+addEventListener('keydown',e=>{if(!PN.active||!(e.ctrlKey||e.metaKey)||e.key.toLowerCase()!=='z'||e.target.tagName==='TEXTAREA')return;e.preventDefault();painUndo();});
+// Арьсан дээрх цэгийг олох
+function painHit(e){const r=cv.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);
+ return ray.intersectObjects(meshes.filter(m=>m.visible&&m.userData.id===SKIN_ID),false)[0];}
+// Шинэ тэмдэглэл эхлүүлэх
+function painStart(p){PN.cur={id:'p'+Date.now(),ts:Date.now(),who:PN.who,pts:[],s:[],type:[],int:5,dur:'',sym:[],note:''};painAdd(p);PN.step='ask';PN.sel=null;painDraw();renderPain();
+ if(PN.mode!=='draw')painFocus(p,0.6);} // зурж байхад камер хөдөлгөхгүй (зураас зөрөхөөс сэргийлэх)
+// Одоогийн тэмдэглэлд шинэ цэг нэмэх (бүсийг автоматаар тодорхойлно)
+function painAdd(p){const rg=painRegion(p);PN.cur.pts.push({p:p.toArray().map(v=>+v.toFixed(4)),r:rg.k,rl:rg.label});painSync(PN.cur);}
+// Цэг рүү ойртуулах: цэгийг дэлгэцийн дээд хэсэгт гаргаж, доорх карт таглахгүй байлгах
+function painFocus(p,dist){const dir=camera.position.clone().sub(controls.target).normalize(),t=p.clone().add(V(0,-dist*0.2,0));flyTo(t,t.clone().add(dir.multiplyScalar(dist)));}
+// Дарахад (чирэхгүй) цэг тавих эсвэл хуучин тэмдэглэлийг нээх
+function painTap(e){
+ const mk=(()=>{const r=cv.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);return ray.intersectObjects(PN.g.children.filter(m=>m.userData.pid),false)[0];})();
+ if(mk&&PN.step!=='ask'){PN.sel=mk.object.userData.pid;PN.step='view';painDraw();renderPain();return;}
+ if(PN.step==='who'||PN.mode==='draw')return;
+ const h=painHit(e);if(!h)return;
+ painPush(); // цэг нэмэхийн өмнө хадгалах
+ if(PN.step==='ask'&&PN.cur){painAdd(h.point);painDraw();renderPain();return;} // асуулгын үед дарвал нэмэлт цэг тавина
+ painStart(h.point);}
+// Зурах горим: хуруугаар арьсан дээр зурж өвдөж буй талбайг тэмдэглэх
+cv.addEventListener('pointerdown',e=>{if(!PN.active||PN.mode!=='draw'||PN.step==='who')return;const h=painHit(e);if(!h)return;
+ painPush(); // зураас бүрийг нэг алхмаар буцаах
+ controls.enableRotate=false;controls.enablePan=false;PN.drawing=true; // зурж байхад биеийг эргүүлэхгүй
+PN.last=h.point.clone();
+ if(!PN.cur||PN.step!=='ask')painStart(h.point);PN.cur.s.push(h.point.toArray().map(v=>+v.toFixed(4)));painDraw();});
+cv.addEventListener('pointermove',e=>{if(!PN.drawing)return;const h=painHit(e);if(!h)return;if(h.point.distanceTo(PN.last)<0.006)return;PN.last=h.point.clone();PN.cur.s.push(h.point.toArray().map(v=>+v.toFixed(4)));
+ const d=new THREE.Mesh(PSPH,PMAT2);d.position.copy(h.point);d.scale.setScalar(0.0045);d.userData.b=0.0045;d.renderOrder=29;PN.g.add(d);});
+window.addEventListener('pointerup',()=>{if(PN.drawing){PN.drawing=false;controls.enableRotate=true;controls.enablePan=true;}}); // зурж дуусахад эргүүлэлтийг буцааж асаах
+// Шалтгааныг онооход эрэмбэлэх: тохирох шинж тэмдэг бүрт оноо нэмэх
+function painCauses(en,rk){const R=REGN[rk||en.r],arr=(en.who==='child'?R.c:R.a)||R.a,keys=new Set(en.type.concat(en.sym));
+ return arr.map((c,i)=>({c,s:c.k.reduce((a,k)=>a+(keys.has(k)?2:0),0)-i*0.1})).sort((a,b)=>b.s-a.s).map(x=>x);}
+const pcard=$('paincard');
+// Өвдөлтийн картыг зурах (алхам бүрээр)
+function renderPain(){const st=PN.step;let h='';
+ const top=`<div class="tc-top"><span>Өвдөлт тэмдэглэх${PN.who?' · '+(PN.who==='child'?'Хүүхэд':'Том хүн'):''}</span><span class="sp"></span>${PN.who&&st!=='who'?`<button class="tc-tog" id="pnUndo" data-n="undo" ${PN.undo.length?'':'disabled'} title="Буцаах (Ctrl+Z)">↶ Буцаах</button>`:''}${PN.who&&st!=='who'?`<button class="tc-tog" data-n="min">${pcard.classList.contains('min')?'Дэлгэх':'Жижигрүүлэх'}</button>`:''}${PN.who?'<button class="tc-tog" data-n="who">Хэний</button>':''}</div>`;
+ if(st==='who'){h=`<h3>Хэний өвдөлтийг тэмдэглэх вэ?</h3><p>Хүүхэд, насанд хүрэгчдэд өвдөлтийн түгээмэл шалтгаан өөр өөр байдаг.</p><div class="tc-ctl"><button class="btn pri" data-n="adult">Том хүн</button><button class="btn pri" data-n="child">Хүүхэд</button><button class="btn x" data-n="close">Гарах</button></div>`;}
+ else if(st==='place'||st==='view'&&!PN.sel){h=`<h3>Өвдөж буй газар дээр дарна уу</h3><p>Биеийг хуруугаараа эргүүлж, томруулаад яг өвдөж буй цэг дээр дарна. «Зурж тэмдэглэх» сонговол өвдөж буй талбайг хуруугаараа будаж тэмдэглэнэ.</p>
+  <div class="chips"><button class="chip plain" data-n="mdot" aria-pressed="${PN.mode==='dot'}">Цэг тавих</button><button class="chip plain" data-n="mdraw" aria-pressed="${PN.mode==='draw'}">Зурж тэмдэглэх</button><button class="chip plain" data-n="back" aria-pressed="false">Ар талыг харах</button><button class="chip plain" data-n="front" aria-pressed="false">Урд талыг харах</button></div>
+  ${PN.list.length?`<div class="tc-time">Хадгалсан тэмдэглэл (${PN.list.length})</div><div class="plog">${PN.list.slice().reverse().map(en=>`<button data-v="${en.id}"><b>${painTitle(en)}</b><span>${new Date(en.ts).toLocaleDateString()} · ${en.int}/10 · ${en.who==='child'?'хүүхэд':'том хүн'}</span></button>`).join('')}</div>`:''}
+  <div class="tc-ctl"><button class="btn x" data-n="close">Гарах</button></div>`;}
+ else if(st==='ask'){const en=PN.cur;h=`<h3>${painTitle(en)}</h3><div class="tc-la">Өвдөж буй өөр газар дээр дарж цэг нэмнэ</div>
+  <div class="ppts">${en.pts.map((q,i)=>`<span><i>${i+1}</i>${q.rl}<button data-x="${i}" aria-label="Цэгийг хасах">×</button></span>`).join('')}</div>
+  <div class="tc-time">Ямар өвдөлт вэ?</div><div class="chips">${PTYPE.map(([k,t])=>`<button class="chip plain" data-t="${k}" aria-pressed="${en.type.includes(k)}">${t}</button>`).join('')}</div>
+  <div class="tc-time">Хэр хүчтэй вэ? <b id="pnInt">${en.int}/10 · ${['Өвдөхгүй','Бага зэрэг','Бага зэрэг','Дунд','Дунд','Дунд','Хүчтэй','Хүчтэй','Маш хүчтэй','Тэвчихийн аргагүй','Тэвчихийн аргагүй'][en.int]}</b></div><input class="brr" type="range" min="0" max="10" step="1" id="pnRange" value="${en.int}" aria-label="Өвдөлтийн хүч">
+  <div class="tc-time">Хэзээнээс эхэлсэн бэ?</div><div class="chips">${PDUR.map(([k,t])=>`<button class="chip plain" data-d="${k}" aria-pressed="${en.dur===k}">${t}</button>`).join('')}</div>
+  <div class="tc-time">Өөр шинж тэмдэг байна уу?</div><div class="chips">${PSYM.map(([k,t])=>`<button class="chip plain" data-s="${k}" aria-pressed="${en.sym.includes(k)}">${t}</button>`).join('')}</div>
+  <label class="tc-time" for="pnNote">Тэмдэглэл</label><textarea id="pnNote" class="search" rows="2" placeholder="Жишээ нь: хоолны дараа эхэлсэн, шөнө сэрээсэн">${en.note}</textarea>
+  <div class="tc-ctl"><button class="btn pri" data-n="analyze" ${en.pts.length?'':'disabled'}>Шалтгааныг харах</button><button class="btn" data-n="cancel">Болих</button></div>`;}
+ else if(st==='result'||st==='view'){const en=st==='view'?PN.list.find(x=>x.id===PN.sel):PN.cur;if(!en){PN.step='place';return renderPain();}
+  const regs=[...new Set(en.pts.map(q=>q.r))]; // давхардалгүй бүсүүд
+  const blocks=regs.map(rk=>({rk,R:REGN[rk],cs:painCauses(en,rk),lab:en.pts.filter(q=>q.r===rk).map(q=>en.pts.indexOf(q)+1)}));
+  const cs=blocks[0].cs,urgentSym=en.sym.includes('breath')||en.int>=9||(regs.includes('chest')&&en.type.includes('press'))||blocks.some(b=>b.cs[0].c.u&&b.cs[0].s>=4); // яаралтай шалтгаантай хүчтэй тохирвол анхааруулна
+  h=`<h3>${painTitle(en)}</h3><div class="pg-meta"><span>${en.int}/10</span>${en.type.map(k=>`<span>${PTYPE.find(x=>x[0]===k)[1]}</span>`).join('')}${en.dur?`<span>${PDUR.find(x=>x[0]===en.dur)[1]}</span>`:''}${en.sym.map(k=>`<span>${PSYM.find(x=>x[0]===k)[1]}</span>`).join('')}</div>${en.note?`<p>«${en.note.replace(/</g,'&lt;')}»</p>`:''}
+  ${urgentSym?`<div class="pwarn">Таны тэмдэглэснээр яаралтай үзүүлэх шаардлагатай байж магадгүй. Эргэлзвэл <b>103</b> руу залгана уу.</div>`:''}
+  <div class="tc-time">Байж болох шалтгаанууд (магадлал өндрөөс)</div>
+  ${blocks.map(B=>`${blocks.length>1?`<div class="preg-h">Цэг ${B.lab.join(', ')} · ${B.R.t}</div>`:''}<ol class="pcause">${B.cs.map(({c,s},i)=>`<li class="${i===0&&s>0?'top':''}"><b>${c.t}</b>${c.u?' <em>Эмчид яаралтай</em>':''}<span>${c.d}</span></li>`).join('')}</ol>`).join('')}
+  <div class="pred"><b>Яаралтай эмчид хандах буюу 103 руу залгах шинж:</b><ul>${[...new Set(blocks.flatMap(B=>B.R.r))].map(x=>`<li>${x}</li>`).join('')}</ul></div>
+  <p class="note">Энэ бол онош биш. Тэмдэглэсэн зүйлээ эмчид үзүүлэхэд, ямар үед яаралтай хандахыг мэдэхэд туслах зорилготой. Өвдөлт удаан үргэлжилж, улам хүчтэй болвол эмчид үзүүлээрэй.</p>
+  <div class="tc-ctl">${st==='result'?'<button class="btn pri" data-n="save">Тэмдэглэлд хадгалах</button><button class="btn" data-n="edit">Засах</button>':'<button class="btn" data-n="del" id="pnDel">Устгах</button>'}<button class="btn" data-n="new">Өөр газар тэмдэглэх</button><button class="btn x" data-n="close">Гарах</button></div>`;}
+ pcard.innerHTML=top+h;
+ // Товчлууруудын үйлдэл
+ pcard.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{const a=b.dataset.n;
+  if(a==='adult'||a==='child'){PN.who=a;KU.value=(a==='child'||state.kids)?1:0;PN.step='place';renderPain();}
+  if(a==='undo'){painUndo();return;} // сүүлийн үйлдлийг буцаах
+  if(a==='min'){pcard.classList.toggle('min');renderPain();} // картыг жижигрүүлж биеийг илүү харах
+  if(a==='who'){PN.step='who';PN.cur=null;painDraw();renderPain();}
+  if(a==='mdot'||a==='mdraw'){PN.mode=a==='mdraw'?'draw':'dot';renderPain();}
+  if(a==='back')flyTo(V(0,0.95,0),V(0.25,1.0,-2.9));if(a==='front')flyTo(V(0,0.95,0),V(0.25,1.0,2.9));
+  if(a==='analyze'){PN.step='result';renderPain();pcard.scrollTop=0;}
+  if(['cancel','new','save','del'].includes(a)&&!(a==='del'&&!b.dataset.ok))painPush(); // хадгалах/устгах/болихыг буцааж болно
+  if(a==='cancel'||a==='new'){PN.cur=null;PN.sel=null;PN.step='place';painDraw();renderPain();}
+  if(a==='edit'){PN.step='ask';renderPain();}
+  if(a==='save'){PN.list.push(PN.cur);painSave();PN.sel=PN.cur.id;PN.cur=null;PN.step='view';painDraw();renderPain();}
+  if(a==='del'){if(b.dataset.ok){PN.list=PN.list.filter(x=>x.id!==PN.sel);painSave();PN.sel=null;PN.step='place';painDraw();renderPain();}else{b.dataset.ok='1';b.textContent='Үнэхээр устгах уу? Дахин дар';}}
+  if(a==='close')exitPain();});
+ pcard.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{const en=PN.list.find(x=>x.id===b.dataset.v);PN.sel=en.id;PN.step='view';painDraw();renderPain();if(en.pts.length)painFocus(V(...en.pts[0].p),0.6);});
+ const en=PN.cur;if(st==='ask'&&en){
+  pcard.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{painPush();const k=b.dataset.t;en.type=en.type.includes(k)?en.type.filter(x=>x!==k):en.type.concat(k);b.setAttribute('aria-pressed',en.type.includes(k));});
+  pcard.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{painPush();const k=b.dataset.s;en.sym=en.sym.includes(k)?en.sym.filter(x=>x!==k):en.sym.concat(k);b.setAttribute('aria-pressed',en.sym.includes(k));});
+  pcard.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{painPush();en.dur=b.dataset.d;pcard.querySelectorAll('[data-d]').forEach(x=>x.setAttribute('aria-pressed',x===b));});
+  pcard.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{painPush();en.pts.splice(+b.dataset.x,1);painSync(en);painDraw();renderPain();}); // цэг хасах
+  const rg=$('pnRange');rg.oninput=()=>{en.int=+rg.value;$('pnInt').textContent=en.int+'/10';};
+  $('pnNote').oninput=e=>{en.note=e.target.value.slice(0,300);};}
+}
+// Өвдөлтийн горимд орох
+function enterPain(){if(PN.active)return;leaveBody();if(PG.active||EY.active){PG.active=false;EY.active=false;app.classList.remove('preg');app.classList.remove('eye');}
+ PN.active=true;PN.saved={skin:state.skin,on:Object.assign({},state.on),kids:KU.value};app.classList.add('pain');
+ state.iso=null;state.on={skin:true,muscle:false,bone:false,organ:false,vessel:false};setSkin(1);applyVis();renderChips();
+ PN.g.visible=true;PN.step=PN.who?'place':'who';if(PN.who)KU.value=(PN.who==='child'||state.kids)?1:0;
+ flyTo(V(0,0.95,0),V(0.25,1.0,2.9));painDraw();renderPain();setTabs();setTimeout(resize,60);}
+// Өвдөлтийн горимоос гарах — өмнөх тохиргоог сэргээх
+function exitPain(){if(!PN.active)return;PN.active=false;app.classList.remove('pain');PN.g.visible=false;PN.cur=null;plabEl.innerHTML='';PN.labs=[];controls.enabled=true;
+ if(PN.saved){state.on=PN.saved.on;KU.value=PN.saved.kids;setSkin(PN.saved.skin);}applyVis();renderChips();setTabs();setTimeout(resize,60);flyTo(V(0,0.85,0),V(0.9,1.1,3.0));}
+// Сонгосон тэмдэглэгээг лугшуулах
+function painTick(){if(!PN.active)return;painLabelTick();const t=performance.now()/1000;
+ // Камерын зайгаас хамаарч цэгийн хэмжээг тохируулах: ойртоход том болохгүй, холдоход алга болохгүй
+ const k=Math.min(1.6,Math.max(0.18,camera.position.distanceTo(controls.target)/1.6));
+ PN.g.children.forEach(m=>{const b=m.userData.b||0.005;m.scale.setScalar(b*k*(m.userData.pulse?1+0.25*Math.sin(t*5):1));});}
+
+
+/* ================= LOOP ================= */
+function resize(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(stage);
+const tmp=new THREE.Vector3();let lastT=performance.now();
+function loop(now){
+ requestAnimationFrame(loop);
+ const dt=Math.min(0.1,Math.max(0,(now-lastT)/1000));lastT=now;
+ if(tour.active)tourTick(dt);
+ if(PG.active)pgUpdate(dt);
+ if(EY.active)eyUpdate(dt);
+ expTick();
+ if(GD.active)guideTick(dt);
+ painTick(); // сонгосон тэмдэглэгээг лугшуулах
+ if(br.active&&br.playing){br.acc+=dt;if(br.acc>2.4){br.acc=0;brStep(1);}}
+ if(anim){let u=Math.min(1,(now-anim.t0)/anim.d);u=u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;controls.target.lerpVectors(anim.ft,anim.tt,u);camera.position.lerpVectors(anim.fp,anim.tp,u);if(u>=1)anim=null;}
+ controls.update();renderer.render(PG.active?PG.scene:EY.active?EY.scene:scene,camera);
+ let pt=null,label='';
+ if(PG.active){}else if(EY.active){if(EY.sel){const c=eyCenter(EY.sel);if(c){pt=c;label=EYEP[EY.sel][0];}}}else if(tour.active){pt=bw;label=TT[tour.s].t;}else if(selCenter){pt=selCenter;label=partById[state.sel].n;}
+ if(pt){tmp.copy(pt).project(camera);if(tmp.z<1&&Math.abs(tmp.x)<1.1&&Math.abs(tmp.y)<1.1){tagEl.hidden=false;tagEl.textContent=label;tagEl.style.left=((tmp.x+1)/2*stage.clientWidth)+'px';tagEl.style.top=((1-tmp.y)/2*stage.clientHeight-(tour.active?10:0))+'px';}else tagEl.hidden=true;}else tagEl.hidden=true;
+}
+
+/* ================= START ================= */
+renderChips();renderIsoChips();resize();requestAnimationFrame(loop);
+renderBrChips();
+$('tabBody').onclick=()=>exitScenes();$('tabPreg').onclick=()=>enterPreg();$('tabEye').onclick=()=>enterEye();$('tabPain').onclick=()=>enterPain(); // өвдөлтийн хэсэгт орох
+$('tabLearn').onclick=()=>window.LEARN_UI&&LEARN_UI.open(); // сурах хэсгийг нээх
+$('tExp').onclick=()=>{setExplode(!EXP.on);setTimeout(focusVisible,900);};
+controls.screenSpacePanning=true;controls.panSpeed=1.1;
+const tPan=$('tPan');tPan.onclick=()=>{const on=tPan.getAttribute('aria-pressed')!=='true';tPan.setAttribute('aria-pressed',on);
+ controls.mouseButtons.LEFT=on?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE;controls.mouseButtons.RIGHT=on?THREE.MOUSE.ROTATE:THREE.MOUSE.PAN;
+ controls.touches.ONE=on?THREE.TOUCH.PAN:THREE.TOUCH.ROTATE;cv.style.cursor=on?'grab':'';};
+const gate=$('gate');
+function setKids(k){state.kids=k;KU.value=k?1:0;try{localStorage.setItem('anat-mode',k?'kids':'full');}catch(e){}
+ $('modeBtn').textContent=k?'Хүүхдийн хувилбар':'Бүтэн хувилбар';gate.hidden=true;
+ if(tour.active)stopTour();if(br.active)stopBrowse();if(GD.active)stopGuide();
+ if(k&&state.sel&&partById[state.sel]&&KIDS_HIDE.has(partById[state.sel].g))select(null);
+ if(k&&state.iso&&state.iso.t==='sys'&&state.iso.k==='repro')setIso(null);
+ applyVis();renderList();renderIsoChips();}
+$('gKids').onclick=()=>{setKids(true);exitPain();};$('gFull').onclick=()=>{setKids(false);exitPain();};
+// Өвдөлт сонгоход: өмнөх хувилбарыг хадгалж, өвдөлтийн горимд орох
+// «Сурах»-ыг сонгоход: өмнөх хувилбарыг тохируулж, сурах хэсгийг нээх (атлас ард нь ачаалагдсаар байна)
+$('gLearn').onclick=()=>{let md=null;try{md=localStorage.getItem('anat-mode');}catch(e){}setKids(md==='kids');window.LEARN_UI&&LEARN_UI.open();};
+$('gPain').onclick=()=>{let md=null;try{md=localStorage.getItem('anat-mode');}catch(e){}setKids(md==='kids');enterPain();};$('modeBtn').onclick=()=>{gate.hidden=false;$('gKids').focus();};
+// Хуудас нээгдэх бүрт эхлээд юу хийхийг асууна (өмнөх сонголтыг урьдчилан тохируулна)
+{let md=null;try{md=localStorage.getItem('anat-mode');}catch(e){}if(md)setKids(md==='kids');gate.hidden=false;}
+(async()=>{
+ try{
+  const [man,td]=await Promise.all([fetch(DATA+'manifest.json').then(r=>{if(!r.ok)throw new Error('manifest '+r.status);return r.json();}),fetch(DATA+'tour.json').then(r=>r.ok?r.json():null)]);
+  MAN=man;G=man.groups;TOURD=td;
+  if(TOURD){const mth=TOURD.find(x=>x.k==='mouth');if(mth)mth.p=[[0,1.467,0.20],[0,1.467,0.15],[0,1.467,0.112],[0,1.468,0.08],[0,1.467,0.05],[0,1.46,0.02]];}MAN.parts.forEach(p=>partById[p.id]=p);
+  MAN.parts.forEach(p=>{if(['frontal bone','left parietal bone','right parietal bone','occipital bone'].includes(p.e))CAP.add(p.id);});
+  CAP.forEach(id=>state.hidden.add(id));
+  renderList();renderInfo();
+  const order=['bone','organ','vessel','skin'];let done=0;$('loadBar').style.width='8%';
+  await Promise.all(order.map(L=>loadLayer(L).then(()=>{done++;$('loadBar').style.width=(8+done/order.length*92)+'%';$('loadSub').textContent=done+'/'+order.length+' давхарга';})));
+  $('loading').hidden=true;
+  window.ATLAS.ready=true;                                             // «Сурах» хэсэгт атлас бэлэн болсныг мэдэгдэх
+ }catch(e){showErr(e);}
+})();
+// «Сурах» хэсгээс атласын үйлдлүүдийг дуудах гүүр (энэ скрипт дотор хаалттай функцуудыг гадагш нээнэ)
+window.ATLAS=Object.assign(window.ATLAS||{},{
+ // Өмнө ажиллаж байсан горим бүрийг зогсоох
+ reset(){if(PN.active)exitPain();exitScenes();if(tour.active)stopTour();if(br.active)stopBrowse();if(GD.active)stopGuide(true);},
+ sys:async k=>{await setIso({t:'sys',k});renderIsoChips();},           // тогтолцоог тусад нь
+ tour:()=>startTour(),                                                 // хоолны аялал
+ guide:k=>startGuide(k),                                               // тархи / хэвлийн задрал
+ eye:()=>enterEye(),                                                   // нүд
+ preg:()=>enterPreg(),                                                 // ургийн хөгжил
+ browse:k=>startBrowse(k)                                              // нэг бүрчлэн үзэх
+});
+})();
+</script>
+<!-- Сурах хэсэг: хичээлийн агуулга, 3D үзэгч, дэлгэц -->
+<script src="learn/data-1.js"></script>
+<script src="learn/data-2.js"></script>
+<script src="learn/data-2b.js"></script>
+<script src="learn/data-3.js"></script>
+<script src="learn/data-3b.js"></script>
+<script src="learn/data-4a.js"></script>
+<script src="learn/figs-1.js"></script>
+<script src="learn/figs-2.js"></script>
+<script src="learn/figs-3.js"></script>
+<script src="learn/extra.js"></script>
+<script src="learn/figs-2b.js"></script>
+<script src="learn/extra-2b.js"></script>
+<script src="learn/figs-3b.js"></script>
+<script src="learn/extra-3b.js"></script>
+<script src="learn/figs-4a.js"></script>
+<script src="learn/extra-4a.js"></script>
+<script src="learn/viewer3d.js"></script>
+<script src="learn/learn.js"></script>
+<script>
+// Оффлайн ажиллагаа: service worker бүртгэх (зөвхөн https эсвэл localhost дээр ажиллана)
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
+ addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</html>
